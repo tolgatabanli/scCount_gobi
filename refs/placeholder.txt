@@ -1,0 +1,9 @@
+Review - kmer methods
+  https://www.sciencedirect.com/science/article/pii/S2001037024001703
+
+Minimal perfect hash
+  BBHash - https://arxiv.org/abs/1702.03154
+
+Benchmarking
+  Simulation (from FASTA, insertion/substitution/deletion) as done in https://doi.org/10.3389/fgene.2022.890651
+  
