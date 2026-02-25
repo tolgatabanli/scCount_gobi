@@ -19,10 +19,10 @@ public class TranscriptomeFetcher {
         int transcriptIndex = 0;
 
         System.out.println(t);
-        byte[] genomicSequence = fasta.getSubsequenceAt(t.getChr(), t.getStart() + 1, t.getEnd() + 1).getBases(); // TODO: THERE IS A BUG
+        byte[] genomicSequence = fasta.getSubsequenceAt(t.getChr(), t.getStart(), t.getEnd()).getBases(); // TODO: THERE IS A BUG
 
         for (Exon exon : t.getSortedExons()) {
-            for (int exonIndex = exon.getStart(); exonIndex < exon.getEnd(); exonIndex++) {
+            for (int exonIndex = exon.getStart(); exonIndex <= exon.getEnd(); exonIndex++) {
                 transcriptSequence[transcriptIndex++] = genomicSequence[exonIndex - t.getStart()];
             }
         }
