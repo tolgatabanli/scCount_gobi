@@ -5,6 +5,8 @@ library(GenomicRanges)
 library(GenomicFeatures)
 
 gtf_path <- '/mnt/raidbio2/extdata/praktikum/genprakt/genprakt-ws25/Block/pig-genome/Sus_scrofa.Sscrofa11.1.115.chr.gtf.gz'
+fasta_path <- '/mnt/raidbio2/extdata/praktikum/genprakt/genprakt-ws25/Block/pig-genome/Sus_scrofa.Sscrofa11.1.dna.toplevel.fa.gz'
+idx_path <- '/mnt/raidbio2/extdata/praktikum/genprakt/genprakt-ws25/Block/pig-genome/Sus_scrofa.Sscrofa11.1.dna.toplevel.fa.gz.fai'
 gtf <- import(gtf_path)
 
 last_exons <- gtf %>% as.data.frame() %>%
@@ -19,7 +21,23 @@ p <- last_exons %>%
     geom_histogram(bins = 30)
 ggsave(filename = "hist_ends.png", plot = p)
 
-gtf %>% filter(type == "transcript") %>% 
+gtf %>% filter(type == "transcript") 
 
 transcripts <- makeTxDbFromGFF(gtf_path, format = 'gtf')
 exons <- exonsBy(transcripts, by = "tx")
+
+library(BSgenome)
+library(Biostrings)
+txdb <- makeTxDbFromGFF(gtf_path, format="gtf")
+exons_by_tx <- exonsBy(txdb, by="tx", use.names = TRUE)
+
+genome <- readDNAStringSet(fasta_path)
+names(genome) <- sub("^([^ ]+).*", "\\1", names(genome)) # full string to numbers
+tx_seqs <- extractTranscriptSeqs(genome, exons_by_tx)
+
+# taking last x bps
+last_x_seqs <- subseq(tx_seqs, start = pmax(1, width(tx_seqs) - 199), end = width(tx_seqs))
+
+#writeXStringSet(last_100_seqs, "transcripts_last100_bp.fasta")
+writeXStringSet(last_x_seqs, "/mnt/raidbio2/extstud/praktikum/genprakt-ws25/sc_data/transcripts_last300_bp.fasta")
+
