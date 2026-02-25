@@ -1,5 +1,8 @@
+*.fasta
+data/
 prototyping/pig_index.mmi
 .idea/
+
 target/
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
