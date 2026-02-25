@@ -20,6 +20,6 @@ public class Region {
     }
 
     public int length() {
-        return end - start;
+        return end - start + 1;
     }
 }
