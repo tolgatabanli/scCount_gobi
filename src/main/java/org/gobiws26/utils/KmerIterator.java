@@ -25,7 +25,7 @@ public class KmerIterator implements Iterator<byte[]> {
     @Override
     public byte[] next() {
         if (!hasNext()) throw new NoSuchElementException();
-        byte[] kmer = Arrays.copyOfRange(fullSeq, windowStart, windowStart + k);
+        byte[] kmer = Arrays.copyOfRange(fullSeq, windowStart, windowStart + K);
         windowStart++;
         return kmer;
     }
