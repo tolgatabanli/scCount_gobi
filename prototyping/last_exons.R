@@ -19,7 +19,7 @@ p <- last_exons %>%
     geom_histogram(bins = 30)
 ggsave(filename = "hist_ends.png", plot = p)
 
-gtf %>% filter(type == "transcript") %>% 
+gtf %>% filter(type == "transcript")
 
 transcripts <- makeTxDbFromGFF(gtf_path, format = 'gtf')
 exons <- exonsBy(transcripts, by = "tx")
