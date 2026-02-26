@@ -9,6 +9,7 @@ import htsjdk.samtools.reference.IndexedFastaSequenceFile;
 import htsjdk.samtools.reference.ReferenceSequence;
 import htsjdk.samtools.reference.ReferenceSequenceFile;
 import htsjdk.samtools.reference.ReferenceSequenceFileFactory;
+import org.gobiws26.Readers.FastqReader;
 import org.gobiws26.Readers.GTFReader;
 import org.gobiws26.genomicstruct.Transcript;
 import org.gobiws26.utils.TranscriptomeFetcher;
@@ -17,6 +18,7 @@ public class Main {
     public static File fastaRef = null;
     public static File fastaRefIdx = null;
     public static File gtfFile = null;
+    public static File readTwoFile = null;
 
     public static void main(String[] args) throws IOException {
         //if (args[0].equals("index")) argParserIndex(args);
@@ -29,10 +31,13 @@ public class Main {
         HashMap<String, Transcript> transcripts = (new GTFReader()).read(gtfFile);
 
         try (ReferenceSequenceFile fasta = ReferenceSequenceFileFactory.getReferenceSequenceFile(fastaRef)) {
-            TranscriptomeFetcher tf = new TranscriptomeFetcher(fasta);
-            System.out.println(TranscriptomeFetcher.getStringOf(
-                    tf.fetchTranscriptSequenceOf(transcripts.get("ENSSSCT00000103363"))
-            ));
+            // TODO: read fasta
+        }
+        try (FastqReader readTwoReader = new FastqReader(readTwoFile)) {
+            System.out.println(readTwoReader.getNextRead());
+
+        } catch (Exception e) {
+            throw new RuntimeException("Readers.FastqReader error:\n" + e);
         }
 
     }
@@ -54,7 +59,7 @@ public class Main {
                     }
                     break;
 
-                // FAI file | default is the same file with extension .fai in the same dir
+                // FAI file | optional since samtools searches it in the same dir as fa by default
                 case "-fidx":
                 case "--fastaIdx":
                     if (i + 1 < args.length) {
@@ -68,6 +73,15 @@ public class Main {
                         gtfFile = new File(args[++i]);
                     } else {
                         System.err.println("Error: [-g | --gtf] Please specify a GTF!");
+                        System.exit(1);
+                    }
+                    break;
+
+                case "-r2":
+                    if (i + 1 < args.length) {
+                        readTwoFile = new File(args[++i]);
+                    } else {
+                        System.err.println("Error: [-r2] Please specify a read file in FASTQ format!");
                         System.exit(1);
                     }
                     break;
