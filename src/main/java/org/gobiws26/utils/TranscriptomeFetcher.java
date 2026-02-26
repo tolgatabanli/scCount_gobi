@@ -2,7 +2,6 @@ package org.gobiws26.utils;
 
 import htsjdk.samtools.reference.ReferenceSequenceFile;
 import org.gobiws26.genomicstruct.Exon;
-import org.gobiws26.genomicstruct.Region;
 import org.gobiws26.genomicstruct.Transcript;
 
 import static htsjdk.samtools.util.SequenceUtil.reverseComplement;
@@ -13,6 +12,7 @@ public class TranscriptomeFetcher {
     public TranscriptomeFetcher(ReferenceSequenceFile fasta) {
         this.fasta = fasta;
     }
+
 
     public byte[] fetchTranscriptSequenceOf(Transcript t) {
         byte[] transcriptSequence = new byte[t.getTranscriptomicLength()];
