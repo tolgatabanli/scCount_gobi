@@ -14,7 +14,7 @@ public class GTFReader {
 
     public HashMap<String, Transcript> read(File gtfFile) throws IOException {
         HashMap<String, Transcript> transcripts = new HashMap<>();
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(new GZIPInputStream(new FileInputStream(gtfFile))))) {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(openGtfStream(gtfFile)))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 if (line.startsWith("#")) continue;
@@ -52,5 +52,13 @@ public class GTFReader {
             }
         }
         return transcripts;
+    }
+
+    private InputStream openGtfStream(File gtfFile) throws IOException {
+        FileInputStream fis = new FileInputStream(gtfFile);
+        if (gtfFile.getName().endsWith(".gz")) {
+            return new GZIPInputStream(fis);
+        }
+        return fis;
     }
 }

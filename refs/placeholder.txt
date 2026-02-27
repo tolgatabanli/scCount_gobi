@@ -7,3 +7,11 @@ Minimal perfect hash
 Benchmarking
   Simulation (from FASTA, insertion/substitution/deletion) as done in https://doi.org/10.3389/fgene.2022.890651
   
+Benchmarking dataset
+  comparison with well annotated datasets of different tools https://academic.oup.com/gigascience/article/doi/10.1093/gigascience/giac001/6515741#493952459
+
+Review - sequecing protocolls 
+  different sequencing protocols https://www.nature.com/articles/s12276-018-0071-8
+
+Paper about the oligo(dT) priming biases
+  explains bias of probes captureing singals from inside the gene https://academic.oup.com/nargab/article/4/2/lqac035/6592171
