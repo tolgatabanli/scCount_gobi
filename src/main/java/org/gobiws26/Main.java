@@ -3,6 +3,7 @@ package org.gobiws26;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
 
 import htsjdk.samtools.reference.IndexedFastaSequenceFile;
@@ -12,6 +13,9 @@ import htsjdk.samtools.reference.ReferenceSequenceFileFactory;
 import org.gobiws26.Readers.FastqReader;
 import org.gobiws26.Readers.GTFReader;
 import org.gobiws26.genomicstruct.Transcript;
+import org.gobiws26.utils.KmerIteratorByte;
+import org.gobiws26.utils.KmerIteratorHash;
+import org.gobiws26.utils.KmerIteratorLong;
 import org.gobiws26.utils.TranscriptomeFetcher;
 
 public class Main {
@@ -30,11 +34,16 @@ public class Main {
         argParser(args);
         HashMap<String, Transcript> transcripts = (new GTFReader()).read(gtfFile);
 
+        Transcript debugT = transcripts.get("ENSSSCT00000092142");
+
         try (ReferenceSequenceFile fasta = ReferenceSequenceFileFactory.getReferenceSequenceFile(fastaRef)) {
-            // TODO: read fasta
+            byte[] debugSeq = fasta.getSubsequenceAt(debugT.getChr(), debugT.getStart(), debugT.getEnd()).getBases();
+
+
         }
+
         try (FastqReader readTwoReader = new FastqReader(readTwoFile)) {
-            System.out.println(readTwoReader.getNextRead());
+            //System.out.println(readTwoReader.getNextRead());
 
         } catch (Exception e) {
             throw new RuntimeException("Readers.FastqReader error:\n" + e);
@@ -93,6 +102,7 @@ public class Main {
                         System.err.println("Error: [-k] Please specify a K!");
                         System.exit(1);
                     }
+                    break;
 
                 default:
                     System.err.println("Unknown argument: " + args[i]);
