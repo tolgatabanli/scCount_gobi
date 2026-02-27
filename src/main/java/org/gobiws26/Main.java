@@ -86,6 +86,14 @@ public class Main {
                     }
                     break;
 
+                case "-k":
+                    if (i + 1 < args.length) {
+                        Config.K = Integer.parseInt(args[++i]);
+                    } else {
+                        System.err.println("Error: [-k] Please specify a K!");
+                        System.exit(1);
+                    }
+
                 default:
                     System.err.println("Unknown argument: " + args[i]);
                     System.err.println("Use -h or --help to see the parameter list.");
