@@ -23,7 +23,6 @@
   - Making a robust comparison by filtering SAM alignments from above tools
 - Program
   - Added unit tests to check positive/negative strand transcript seq fetches
-  - 
 ## 4th day 
 - prototyping: 
   - started Java implementation: GTF reader, transcriptomic seq fetcher (uses htsjdk.samtools), and other utils for KmerIterator 
