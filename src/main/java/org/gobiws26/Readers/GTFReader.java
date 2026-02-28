@@ -46,6 +46,7 @@ public class GTFReader {
                     t.setEnd(end);
                     t.setChr(chr);
                     t.setStrand(isNegative);
+                    // TODO: geneid
                 } else {
                     t.addExon(new Exon(start, end));
                 }

@@ -1,34 +1,55 @@
 package org.gobiws26.utils;
 
-import java.util.Iterator;
+import it.unimi.dsi.fastutil.longs.LongIterator;
 import java.util.NoSuchElementException;
 
-public class KmerIteratorLong implements Iterator<Long> {
+public class KmerIteratorLong implements LongIterator {
     private final int K;
     private final byte[] fullSeq;
-    private int windowStart = 0;
+    private byte[] phredSeq;
+    private final long kmerSizeMask;
 
-    // Holds the integer representation of the current k-mer window
-    private long currentKmer = 0L;
+    // The biggest two digits serve as quality flags
+    private int windowStart = 0;
+    private int nCounter = 0;
+    private long currentKmer = 0;
 
     /**
-     * @param sequence A sequence of bytes (e.g., ASCII 'A', 'C', 'G', 'T').
-     * @param k kmer size. Max allowed is 32.
+     * @param sequence A sequence of bytes.
+     * @param k kmer size. Max allowed is 31. The higest two bits are for quality scores (e.g. N).
      */
     public KmerIteratorLong(byte[] sequence, int k) {
         if (k <= 0) throw new IllegalArgumentException("k must be positive");
-        if (k > 32) throw new IllegalArgumentException("k cannot be larger than 32 (limit of 64-bit long)");
+        if (k > 31) throw new IllegalArgumentException("k cannot be larger than 31 (limit of 64-bit long with flag)");
         if (k > sequence.length) throw new IllegalArgumentException("k cannot be larger than sequence length");
 
         this.K = k;
         this.fullSeq = sequence;
 
+        this.kmerSizeMask = (k == 31) ? -1L : (1L << (k * 2 + 2)) - 1;
+
         // Initialize the first k-mer
         for (int i = 0; i < K; i++) {
-            long val = encode(fullSeq[i]);
-            // Shift left by 2*i because the first nucleotide goes to the right/LSD
-            currentKmer |= (val << (2 * i));
+            byte nuc = encode(fullSeq[i]);
+            if (fullSeq[i] == 78) nCounter++; // 'N' = 78
+            currentKmer <<= 2;
+            currentKmer |= nuc; // slide in the new nucleotide
         }
+        applyNFlag();
+    }
+
+    public KmerIteratorLong(byte[] sequence, byte[] phredSequence, int k) {
+        this(sequence, k);
+        this.phredSeq = phredSequence;
+    }
+
+    private void applyNFlag() {
+        if (nCounter > 0) {
+            currentKmer &= ~(3L << (K * 2)); // keep N flag (00)
+        } else {
+            currentKmer |= (3L << (K * 2));  // reset N flag (11)
+        }
+        currentKmer &= kmerSizeMask;
     }
 
     @Override
@@ -36,37 +57,44 @@ public class KmerIteratorLong implements Iterator<Long> {
         return windowStart + K <= fullSeq.length;
     }
 
+    /**
+     * Returns the next kmer where the first nucleotide is in the biggest digit, allowing easy sorting.
+     */
     @Override
-    public Long next() {
+    public long nextLong() {
         if (!hasNext()) throw new NoSuchElementException();
 
-        // If this isn't the first k-mer, we slide the window to the right
-        if (windowStart > 0) {
-            // Drop the oldest nucleotide by shifting logical right by 2
-            currentKmer >>>= 2;
-
-            // Get the newest nucleotide coming into the window
-            long newVal = encode(fullSeq[windowStart + K - 1]);
-
-            // Place the new nucleotide at the highest valid bit position
-            currentKmer |= (newVal << ((K - 1) * 2));
+        if (windowStart == 0) {
+            windowStart++;
+            return currentKmer;
         }
 
+        // See if an N is incoming at the right edge of the window
+        byte nextNuc = fullSeq[windowStart + K - 1];
+        if (nextNuc == 78) nCounter++;
+
+        // Shift kmer, place the new nucleotide at the LSD
+        currentKmer <<= 2;
+        currentKmer |= encode(nextNuc);
+
+        currentKmer &= kmerSizeMask;
+
+        // See if an N is leaving at the left edge of the old window
+        if (fullSeq[windowStart - 1] == 78) nCounter--;
+
+        applyNFlag();
         windowStart++;
         return currentKmer;
     }
 
     /**
      * Maps ASCII nucleotide bytes to their 2-bit representations.
+     * Least modification unique encoding: A: 00, C: 01, T: 10, G: 11
      */
-    private long encode(byte nuc) {
-        switch (nuc) {
-            case 'A': case 'a': return 0L; // 00
-            case 'C': case 'c': return 1L; // 01
-            case 'G': case 'g': return 2L; // 10
-            case 'T': case 't': return 3L; // 11
-            default:
-                throw new IllegalArgumentException("Invalid nucleotide in sequence: " + (char) nuc);
-        }
+    private byte encode(byte nuc) {
+        byte res = nuc;
+        res >>= 1;
+        res &= 3;
+        return res;
     }
 }

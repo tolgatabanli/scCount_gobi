@@ -3,20 +3,15 @@ package org.gobiws26;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.HashMap;
 
-import htsjdk.samtools.reference.IndexedFastaSequenceFile;
-import htsjdk.samtools.reference.ReferenceSequence;
+
 import htsjdk.samtools.reference.ReferenceSequenceFile;
 import htsjdk.samtools.reference.ReferenceSequenceFileFactory;
 import org.gobiws26.Readers.FastqReader;
 import org.gobiws26.Readers.GTFReader;
 import org.gobiws26.genomicstruct.Transcript;
-import org.gobiws26.utils.KmerIteratorByte;
-import org.gobiws26.utils.KmerIteratorHash;
-import org.gobiws26.utils.KmerIteratorLong;
-import org.gobiws26.utils.TranscriptomeFetcher;
+
 
 public class Main {
     public static File fastaRef = null;
