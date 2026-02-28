@@ -1,0 +1,42 @@
+* IntOpenHashSet from fastutils
+
+*
+
+#1
+kmer indexing (transcriptome iteration)
+    keep a set of seenMinims: HashMap kmer -> txList
+
+    for each transcript:
+        init minimSet
+        for each kmer in transcript:
+            currentMinim = calcMinim(kmer)
+            minimList.add(currentMinim)
+        for each minimizer:
+            txList = seenMinims.computeIfAbsent(minimizer, k -> new Set())
+            txList.add(transcript)
+
+#2: counting / read matching
+txToCounts = new IntToIntOpenHashMap();
+unmappedReadCount = 0;
+for each read:
+    mappingQuality \in EvidenceCode;
+    KmerIterator kiIter = new KmerIterator(read, k)
+    init Set txEvidence = seenMinims.get(kiIter.next());
+    for each other kmer in read: # customize: 1) contiguous, 2) decrease kmer size to get more minims, 3) get every kmer
+        minim = calcMinim(kmer)
+        txEvidence.retainAll(seenMinims.get(minim))
+    if (txEvidence.size() == 1) mappingQuality = EvidenceCode.Unique; txToCounts.add(txEvidence.getFirst(), 1)
+
+    else if (txEvidence.size() > 1) { // Rettungsphase
+        // TODO: re-consider the read with different settings: eliminate Kmers with N's or low quality -> how decide?
+        ==> new version of txEvidence
+        if (txEvidence.size() > 1) {
+            for each tx in txEvidence: txEvidence.add(tx, 1)
+            mappingQuality = EvidenceCode.Ambig
+            // report/increment uncertain reads of these transcripts
+        } else if (txEvidence.size() == 1): txToCounts.add(txEvidence.getFirst(), 1)
+
+        else mappingQuality = EvidenceCode.unmapped | unmappedReadCount++
+    } else else mappingQuality = EvidenceCode.unmapped | unmappedReadCount++
+
+
