@@ -18,7 +18,6 @@ public class TranscriptomeFetcher {
         byte[] transcriptSequence = new byte[t.getTranscriptomicLength()];
         int transcriptIndex = 0;
 
-        System.out.println(t);
         byte[] genomicSequence = fasta.getSubsequenceAt(t.getChr(), t.getStart(), t.getEnd()).getBases(); // TODO: THERE IS A BUG
 
         for (Exon exon : t.getSortedExons()) {
@@ -26,7 +25,6 @@ public class TranscriptomeFetcher {
                 transcriptSequence[transcriptIndex++] = genomicSequence[exonIndex - t.getStart()];
             }
         }
-        System.out.println(getStringOf(transcriptSequence));
         if (t.isNegativeStranded()) reverseComplement(transcriptSequence);
         return transcriptSequence;
     }
