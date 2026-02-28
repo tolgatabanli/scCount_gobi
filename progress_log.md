@@ -26,3 +26,10 @@
   - Making a robust comparison by filtering SAM alignments from above tools
 - Program
   - Added unit tests to check positive/negative strand transcript seq fetches 
+## 4th day 
+- prototyping: 
+  - startet java implementation and finished gtf reader and fasta reader + adding utils that will be needed later 
+- Determining how long the subset for the transcript sequence should be 
+  - created bedfiles with the end region of the transcripts 
+  - ran samtools bedcov but numbers are weird --> used bedtools multicov instead 
+  
