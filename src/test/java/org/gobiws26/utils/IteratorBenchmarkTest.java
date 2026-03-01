@@ -9,7 +9,7 @@ import java.util.HashMap;
 import org.junit.jupiter.api.Test;
 import static org.gobiws26.utils.Test.*;
 
-public class HashingBenchmark {
+public class IteratorBenchmarkTest {
 
     @Test
     public void KmerIterTiming() throws IOException {
