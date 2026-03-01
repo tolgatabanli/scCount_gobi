@@ -6,11 +6,14 @@ import java.io.IOException;
 import java.util.HashMap;
 
 
+import htsjdk.samtools.fastq.FastqRecord;
 import htsjdk.samtools.reference.ReferenceSequenceFile;
 import htsjdk.samtools.reference.ReferenceSequenceFileFactory;
-import org.gobiws26.Readers.FastqReader;
+import htsjdk.samtools.fastq.FastqReader;
 import org.gobiws26.Readers.GTFReader;
 import org.gobiws26.genomicstruct.Transcript;
+import org.gobiws26.utils.KmerIteratorLong;
+import org.gobiws26.utils.TranscriptomeFetcher;
 
 
 public class Main {
@@ -37,12 +40,28 @@ public class Main {
 
         }
 
+        long startTime = System.nanoTime();
+        int counter = 0;
+        long kmerNum = 0;
         try (FastqReader readTwoReader = new FastqReader(readTwoFile)) {
             //System.out.println(readTwoReader.getNextRead());
+            while (readTwoReader.hasNext()) {
+                FastqRecord fr = readTwoReader.next();
+                //System.out.println(TranscriptomeFetcher.getStringOf(fr.getReadBases()));
+                KmerIteratorLong kiLong = new KmerIteratorLong(fr.getReadBases(), Config.K);
+                for (long kmer = kiLong.nextLong(); kiLong.hasNext(); kmer = kiLong.nextLong()) {
+                    //System.out.println(kmer);
+                    kmerNum++;
+                }
+                //Thread.sleep(1000);
+                counter++;
+            }
 
         } catch (Exception e) {
             throw new RuntimeException("Readers.FastqReader error:\n" + e);
         }
+        long endTime = System.nanoTime();
+        System.out.println("Time: " + (endTime - startTime) / 1_000_000);
 
     }
 

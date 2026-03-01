@@ -10,9 +10,15 @@ public class FastqReader implements AutoCloseable {
         fastqReader = new htsjdk.samtools.fastq.FastqReader(file);
     }
 
-    public String getNextRead() {
-        FastqRecord fr = fastqReader.next();
-        return fr.getReadName() + "\n" + fr.getReadString();
+    private byte[] currentBases;
+    private byte[] currentQs;
+
+    public FastqRecord getNextRecord() {
+        return fastqReader.next();
+    }
+
+    public boolean  hasNext() {
+        return fastqReader.hasNext();
     }
 
 
