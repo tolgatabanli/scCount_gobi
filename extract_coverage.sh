@@ -2,8 +2,8 @@
 set -euo pipefail
 
 BED_DIR="data/bedfiles"
-BAM_FILE="data/Aligned.sortedByCoord.out.bam"
-OUT_DIR="data/coverage_tsv"
+BAM_FILE="data/filtered_exonic.bam"
+OUT_DIR="data/coverage_filtered"
 BEDTOOLS_BIN="/mnt/raidbio2/extsoft/software/bedtools/bedtools-2.31.1/bedtools2/bin/bedtools"
 
 if [[ ! -x "$BEDTOOLS_BIN" ]]; then
