@@ -1,10 +1,7 @@
 * IntOpenHashSet from fastutils
-
-*
-
 #1
-kmer indexing (transcriptome iteration)
-    keep a set of seenMinims: HashMap kmer -> txList
+kmer indexing (transcriptome iteration) / Class Indexer
+    keep a set of seenMinims: HashMap: minimizer(long) -> txList
 
     for each transcript:
         init minimSet
