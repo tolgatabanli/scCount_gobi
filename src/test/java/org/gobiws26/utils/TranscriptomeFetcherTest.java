@@ -18,6 +18,7 @@ class TranscriptomeFetcherTest {
                 s);
     }
 
+    @Test
     void negativeStrandIsFetchedCorrectly(){
         String s = TranscriptomeFetcher.getStringOf(
                 tf.fetchTranscriptSequenceOf(transcripts.get("ENSSSCT00000103324"))
