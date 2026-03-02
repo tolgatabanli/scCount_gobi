@@ -40,10 +40,11 @@ public class Main {
         //}
         argParser(args);
 
+        // GTF gives a number to transcripts (the order in the below list)
         ArrayList<String> int2Transcript = new ArrayList<>();
         HashMap<String, Transcript> transcripts = (new GTFReader(int2Transcript)).read(gtfFile);
 
-        Indexer indexer = new  Indexer(int2Transcript, transcripts);
+        //Indexer indexer = new Indexer(int2Transcript, transcripts);
 
         Transcript debugT = transcripts.get("ENSSSCT00000092142");
 
