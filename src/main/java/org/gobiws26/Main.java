@@ -17,9 +17,11 @@ import htsjdk.samtools.fastq.FastqReader;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.shorts.ShortOpenHashSet;
 import it.unimi.dsi.fastutil.shorts.ShortSet;
+import org.gobiws26.Indexing.Indexer;
 import org.gobiws26.Readers.GTFReader;
 import org.gobiws26.genomicstruct.Transcript;
 import org.gobiws26.utils.KmerIteratorLong;
+import org.gobiws26.utils.Minimizers;
 import org.gobiws26.utils.TranscriptomeFetcher;
 
 
@@ -41,6 +43,8 @@ public class Main {
         ArrayList<String> int2Transcript = new ArrayList<>();
         HashMap<String, Transcript> transcripts = (new GTFReader(int2Transcript)).read(gtfFile);
 
+        Indexer indexer = new  Indexer(int2Transcript, transcripts);
+
         Transcript debugT = transcripts.get("ENSSSCT00000092142");
 
         try (ReferenceSequenceFile fasta = ReferenceSequenceFileFactory.getReferenceSequenceFile(fastaRef)) {
@@ -55,34 +59,8 @@ public class Main {
 
             // Iterate through the whole read2 file
             while (readTwoReader.hasNext()) {
-                FastqRecord fr = readTwoReader.next();
-                KmerIteratorLong kiLong = new KmerIteratorLong(fr.getReadBases(), Config.K);
-                ShortSet minimSet = new ShortOpenHashSet();
-
-                // For each Kmer in the read, find the minimizer and store pairwise different minimizers with the worst found quality assigned from kmers
-                short currentMinim = KmerIteratorLong.getMinimizer(kiLong.nextLong());
-                byte worstQualityLastMinim = (byte) ((currentMinim >>> 14) & 0b11); // quality score ordering: 11 > 10 > 01 > 00; TODO: will decide what all may correspond to (11 is normal, no 'N' etc.)
-                short lastFoundMinim = currentMinim;
-                while(kiLong.hasNext()) { // TODO: if we'll just deal with minimizers, no need to return kmer from iterator (?), return just the minimizer
-                    currentMinim = KmerIteratorLong.getMinimizer(kiLong.nextLong());
-
-
-                    byte currentQualityBits = (byte) ((currentMinim >>> 14) & 0b11); // unsigned shift!
-                    if ((currentMinim & 0x3FFF) != (lastFoundMinim & 0x3FFF)) { // only add when we change the minimizer sequence, so that we're sure the qualities are considered correctly
-                        lastFoundMinim = (short) ((lastFoundMinim & 0x3FFF) | (worstQualityLastMinim << 14)); // 'infect' with worst kmer's quality
-
-                        minimSet.add(lastFoundMinim);
-
-                        lastFoundMinim = currentMinim;
-                        worstQualityLastMinim = currentQualityBits;
-                    } else {
-                        if (worstQualityLastMinim > currentQualityBits) {
-                            worstQualityLastMinim = currentQualityBits;
-                        }
-                    }
-                }
-                lastFoundMinim = (short) ((lastFoundMinim & 0x3FFF) | (worstQualityLastMinim << 14));;
-                minimSet.add(lastFoundMinim); // flush
+                FastqRecord theRead = readTwoReader.next();
+                ShortSet minimSet = Minimizers.of(theRead.getReadBases()); // TODO: qualities
                 readCounter++;
 
                 if (readCounter % 1_000_000 == 0) {
@@ -112,6 +90,8 @@ public class Main {
         //  1. Write transcript id and gene id in the order imposed by int2Transcript// maybe find better way to store this order
         //  2. Map minimizers to transcripts
     }
+
+
 
     private static void argParser(String[] args) {
         if (args.length == 0 || args[0].equals("-h") || args[0].equals("--help")) {
