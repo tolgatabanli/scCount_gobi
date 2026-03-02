@@ -5,6 +5,7 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.HashMap;
 
@@ -36,14 +37,14 @@ public class Main {
         // printHelp()
         //}
         argParser(args);
-        HashMap<String, Transcript> transcripts = (new GTFReader()).read(gtfFile);
+
+        ArrayList<String> int2Transcript = new ArrayList<>();
+        HashMap<String, Transcript> transcripts = (new GTFReader(int2Transcript)).read(gtfFile);
 
         Transcript debugT = transcripts.get("ENSSSCT00000092142");
 
         try (ReferenceSequenceFile fasta = ReferenceSequenceFileFactory.getReferenceSequenceFile(fastaRef)) {
             byte[] debugSeq = fasta.getSubsequenceAt(debugT.getChr(), debugT.getStart(), debugT.getEnd()).getBases();
-
-
         }
 
         long startTime = System.nanoTime();
@@ -106,6 +107,10 @@ public class Main {
         }
         bw.flush();
         bw.close();
+
+        // TODO create index file:
+        //  1. Write transcript id and gene id in the order imposed by int2Transcript// maybe find better way to store this order
+        //  2. Map minimizers to transcripts
     }
 
     private static void argParser(String[] args) {
