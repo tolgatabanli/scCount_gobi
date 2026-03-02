@@ -16,16 +16,19 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Takes an output file and transcriptome to write an index file that maps the following information:
- *  1) lines of transcript_id's and their gene_id's as they appeared in the GTF, where line number corresponds to their 'index'
- *  2) map of minimizers to transcript index (the above line index)
+ *  1) transcript_id's, their gene_id's and a unique ID (int)
+ *  2) map of minimizers to transcript (the above unique ID)
  */
 public class Indexer {
+    // inputs
     private ReferenceSequenceFile refSeqFile;
     private HashMap<String, Transcript> transcripts;
-    private ArrayList<String> transcriptIDArray;
+
+    // outputs
+    private HashMap<String, Integer> transcriptToIndex = new HashMap<>();
 
     // Map minimizer (short) -> transcripts (int array)
-    //private Short2IntArrayMap minimizer2Transcripts; // TODO: use synchronized version or the concurrent wrapper for multi-thread
+    // TODO: use synchronized version or the concurrent wrapper for multi-thread
     private ConcurrentHashMap<Short, IntArrayList> minimizer2Transcripts;
 
 
@@ -36,24 +39,32 @@ public class Indexer {
 
     }
 
+    // TODO: REIHENFOLGE IST AUCH WICHTIG VON DEN MINIMIZERN!!
     public void runIndex() {
+        minimizer2Transcripts = new ConcurrentHashMap<>();
+
+        int txCounter = 0;
         TranscriptomeFetcher tf = new TranscriptomeFetcher(refSeqFile);
         for (Map.Entry<String, Transcript> txEntry : transcripts.entrySet()) {
             Transcript tx = txEntry.getValue();
             String txId = txEntry.getKey();
+            transcriptToIndex.put(txId, txCounter);
 
             byte[] seq = tf.fetchTranscriptSequenceOf(tx);
             ShortSet minimSet = Minimizers.of(seq);
             for (short minimizer : minimSet) {
                 IntArrayList txList = minimizer2Transcripts.computeIfAbsent(minimizer, k -> new IntArrayList());
-                txList.add(transcriptIDArray.indexOf(txId));
+                txList.add(txCounter);
             }
+
+            txCounter++;
         }
     }
     // TODO: add thread
     // TODO: can give tail length as second arg
 
     public void writeToFile(BufferedWriter bw) {
+        if (transcriptToIndex == null) throw new IllegalStateException("Indexer has not been run!");
 
     }
 }
