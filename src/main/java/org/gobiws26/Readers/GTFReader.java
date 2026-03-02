@@ -38,7 +38,7 @@ public class GTFReader {
                 boolean isNegative = fields[6].equals("-"); // defaults to positive if dot
 
                 // TODO decide features better?
-                if (!feature.equals("transcript") && !feature.equals("exon") && !feature.equals("three_prime_utr")) continue; // TODO: integrate 3' UTR
+                if (!feature.equals("transcript") && !feature.equals("exon") && !feature.equals("three_prime_utr")) continue;
 
                 Matcher transcriptMatcher = patternTranscriptID.matcher(fields[8]);
                 Matcher geneMatcher = patternGeneID.matcher(fields[8]);
@@ -49,9 +49,9 @@ public class GTFReader {
                 if (transcriptMatcher.find()) {
                     transcriptId = transcriptMatcher.group(1);
                     t = transcripts.computeIfAbsent(transcriptId, k -> {
-                            Transcript k = new Transcript();
+                            Transcript lambdaTx = new Transcript();
                             int2Transcript.add(transcriptId);
-                            return k;
+                            return lambdaTx;
                     }); // do not set info if exon comes before
                 } else continue;
                 if (geneMatcher.find()) {

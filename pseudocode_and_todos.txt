@@ -37,3 +37,6 @@ for each read:
     } else else mappingQuality = EvidenceCode.unmapped | unmappedReadCount++
 
 
+
+## TODOS
+- use semesterteil simulator to measure accuracy
