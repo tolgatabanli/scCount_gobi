@@ -1,10 +1,10 @@
-package org.gobiws26.utils;
+package org.gobiws26;
 
 import htsjdk.samtools.reference.ReferenceSequenceFile;
 import htsjdk.samtools.reference.ReferenceSequenceFileFactory;
-import org.gobiws26.Config;
 import org.gobiws26.Readers.GTFReader;
 import org.gobiws26.genomicstruct.Transcript;
+import org.gobiws26.utils.TranscriptomeFetcher;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 
