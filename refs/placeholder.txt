@@ -15,3 +15,6 @@ Review - sequecing protocolls
 
 Paper about the oligo(dT) priming biases
   explains bias of probes captureing singals from inside the gene https://academic.oup.com/nargab/article/4/2/lqac035/6592171
+
+post about how bedcov is weird compared with bedtools coverage:
+  https://www.biostars.org/p/195497/

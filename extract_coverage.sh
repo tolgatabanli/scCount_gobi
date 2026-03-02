@@ -2,9 +2,16 @@
 set -euo pipefail
 
 BED_DIR="data/bedfiles"
-BAM_FILE="data/filtered_exonic.bam"
-OUT_DIR="data/coverage_filtered"
+SPACERANGER_BAM_FILE="/mnt/raidbio2/extdata/praktikum/genprakt/genprakt-ws25/Block/pig-data-visium/Vis_66-10.spaceranger.bam"
+BAM_FILE="/home/t/tan/scCount_gobi/data/star_run/Aligned.sortedByCoord.out.bam"
+OUT_DIR="data/coverage_spaceranger_big"
 BEDTOOLS_BIN="/mnt/raidbio2/extsoft/software/bedtools/bedtools-2.31.1/bedtools2/bin/bedtools"
+MAX_JOBS=20
+
+if ! [[ "$MAX_JOBS" =~ ^[0-9]+$ ]] || (( MAX_JOBS < 1 )); then
+	echo "Error: MAX_JOBS must be a positive integer, got: $MAX_JOBS" >&2
+	exit 1
+fi
 
 if [[ ! -x "$BEDTOOLS_BIN" ]]; then
 	echo "Error: bedtools binary is not executable: $BEDTOOLS_BIN" >&2
@@ -19,10 +26,11 @@ fi
 mkdir -p "$OUT_DIR"
 
 pids=()
+declare -A pid_to_out
 
 for k in $(seq 100 100 2000); do
-	bed_file="$BED_DIR/last_${k}_bp.bed"
-	out_file="$OUT_DIR/last_${k}_bp.tsv"
+	bed_file="$BED_DIR/last_${k}_merged.bed"
+	out_file="$OUT_DIR/last_${k}_bp_merged.tsv"
 
 	if [[ ! -f "$bed_file" ]]; then
 		echo "Warning: missing BED file, skipping: $bed_file" >&2
@@ -30,14 +38,17 @@ for k in $(seq 100 100 2000); do
 	fi
 
 	(
-		{
-			printf 'transcript_id\tk_count\n'
-			"$BEDTOOLS_BIN" multicov -bed "$bed_file" -bams "$BAM_FILE" 2>&1 | awk '{print $4 "\t" $NF}'
-		} > "$out_file" 2>&1
+		"$BEDTOOLS_BIN" multicov -bed "$bed_file" -bams "$SPACERANGER_BAM_FILE" > "$out_file" 2>&1
 	) &
-	pids+=("$!")
+	pid=$!
+	pids+=("$pid")
+	pid_to_out["$pid"]="$out_file"
 
 	echo "Started k=$k -> $out_file"
+
+	while [[ $(jobs -rp | wc -l) -ge $MAX_JOBS ]]; do
+		sleep 0.2
+	done
 done
 
 if [[ ${#pids[@]} -eq 0 ]]; then
@@ -49,6 +60,12 @@ failed=0
 for pid in "${pids[@]}"; do
 	if ! wait "$pid"; then
 		failed=1
+		failed_out="${pid_to_out[$pid]}"
+		echo "Debug: bedtools job failed for output: $failed_out" >&2
+		if [[ -f "$failed_out" ]]; then
+			echo "Debug: last 20 lines of $failed_out" >&2
+			tail -n 20 "$failed_out" >&2
+		fi
 	fi
 done
 
