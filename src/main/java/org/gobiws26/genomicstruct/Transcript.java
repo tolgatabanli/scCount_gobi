@@ -10,7 +10,9 @@ public class Transcript extends Region {
     private String geneId;
     private boolean isNegativeStranded;
     private final List<Exon> exons = new ArrayList<>();
+
     private int transcriptomicLength = 0;
+    private int threePrimeUTRLength = 0;
 
     public Transcript() {
         super();
@@ -60,6 +62,10 @@ public class Transcript extends Region {
     public List<Exon> getSortedExons() {
         exons.sort(Comparator.comparingInt(Exon::getStart));
         return Collections.unmodifiableList(exons);
+    }
+
+    public void addToUTR(int utrWidth) {
+        this.threePrimeUTRLength += utrWidth;
     }
 
     @Override
