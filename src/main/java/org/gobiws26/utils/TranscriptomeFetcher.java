@@ -4,6 +4,8 @@ import htsjdk.samtools.reference.ReferenceSequenceFile;
 import org.gobiws26.genomicstruct.Exon;
 import org.gobiws26.genomicstruct.Transcript;
 
+import java.util.Arrays;
+
 import static htsjdk.samtools.util.SequenceUtil.reverseComplement;
 
 public class TranscriptomeFetcher {
@@ -27,6 +29,11 @@ public class TranscriptomeFetcher {
         }
         if (t.isNegativeStranded()) reverseComplement(transcriptSequence);
         return transcriptSequence;
+    }
+
+    public byte[] fetchTranscriptSequenceOf(Transcript t, int tailLength) {
+        byte[] bases = fetchTranscriptSequenceOf(t);
+        return Arrays.copyOfRange(bases, bases.length - tailLength, bases.length);
     }
 
     public static String getStringOf(byte[] inBytes) {
