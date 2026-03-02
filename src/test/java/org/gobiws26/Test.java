@@ -13,12 +13,12 @@ import java.io.IOException;
 import java.util.HashMap;
 
 public class Test {
-    static File fastaFile = new File("/mnt/raidbio2/extdata/praktikum/genprakt/genprakt-ws25/Block/pig-genome/Sus_scrofa.Sscrofa11.1.dna.toplevel.fa.gz");
-    static File fastaIndex = new File("/mnt/raidbio2/extdata/praktikum/genprakt/genprakt-ws25/Block/pig-genome/Sus_scrofa.Sscrofa11.1.dna.toplevel.fa.gz.fai");
-    static File gtfFile = new File("/mnt/raidbio2/extdata/praktikum/genprakt/genprakt-ws25/Block/pig-genome/Sus_scrofa.Sscrofa11.1.115.chr.gtf.gz");
-    static HashMap<String, Transcript> transcripts;
-    static ReferenceSequenceFile fasta = ReferenceSequenceFileFactory.getReferenceSequenceFile(fastaFile);
-    static TranscriptomeFetcher tf = new TranscriptomeFetcher(fasta);
+    public static File fastaFile = new File("/mnt/raidbio2/extdata/praktikum/genprakt/genprakt-ws25/Block/pig-genome/Sus_scrofa.Sscrofa11.1.dna.toplevel.fa.gz");
+    public static File fastaIndex = new File("/mnt/raidbio2/extdata/praktikum/genprakt/genprakt-ws25/Block/pig-genome/Sus_scrofa.Sscrofa11.1.dna.toplevel.fa.gz.fai");
+    public static File gtfFile = new File("/mnt/raidbio2/extdata/praktikum/genprakt/genprakt-ws25/Block/pig-genome/Sus_scrofa.Sscrofa11.1.115.chr.gtf.gz");
+    public static HashMap<String, Transcript> transcripts;
+    public static ReferenceSequenceFile fasta = ReferenceSequenceFileFactory.getReferenceSequenceFile(fastaFile);
+    public static TranscriptomeFetcher tf = new TranscriptomeFetcher(fasta);
 
     static {
         Config.K = 20;

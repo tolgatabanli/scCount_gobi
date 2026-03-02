@@ -2,8 +2,8 @@ package org.gobiws26.utils;
 
 import java.lang.Long;
 import org.junit.jupiter.api.Test;
-import static org.gobiws26.utils.Test.tf;
-import static org.gobiws26.utils.Test.transcripts;
+import static org.gobiws26.Test.tf;
+import static org.gobiws26.Test.transcripts;
 
 import static org.junit.jupiter.api.Assertions.*;
 
