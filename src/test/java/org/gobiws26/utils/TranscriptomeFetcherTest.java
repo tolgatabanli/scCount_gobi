@@ -4,7 +4,7 @@ package org.gobiws26.utils;
 import org.junit.jupiter.api.Test;
 
 
-import static org.gobiws26.utils.Test.*;
+import static org.gobiws26.Test.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class TranscriptomeFetcherTest {

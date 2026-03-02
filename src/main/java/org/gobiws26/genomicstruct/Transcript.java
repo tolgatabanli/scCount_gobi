@@ -7,6 +7,7 @@ import java.util.List;
 
 public class Transcript extends Region {
     private String chromosome;
+    private String geneId;
     private boolean isNegativeStranded;
     private final List<Exon> exons = new ArrayList<>();
     private int transcriptomicLength = 0;
@@ -34,6 +35,14 @@ public class Transcript extends Region {
     public void addExon(Exon exon) {
         this.exons.add(exon);
         transcriptomicLength += exon.length();
+    }
+
+    public void setGene(String geneId) {
+        this.geneId = geneId;
+    }
+
+    public String getGeneId() {
+        return geneId;
     }
 
     public String getChr() {

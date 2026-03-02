@@ -4,6 +4,7 @@ import org.gobiws26.genomicstruct.Exon;
 import org.gobiws26.genomicstruct.Transcript;
 
 import java.io.*;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -11,6 +12,16 @@ import java.util.zip.GZIPInputStream;
 
 public class GTFReader {
     static final Pattern patternTranscriptID = Pattern.compile("transcript_id\\s+\"([^\"]+)\"");
+    static final Pattern patternGeneID = Pattern.compile("gene_id\\s+\"([^\"]+)\"");
+    private final ArrayList<String> int2Transcript;
+
+    public GTFReader() {
+        this.int2Transcript = new ArrayList<>(); // might add getter if created this way
+    }
+
+    public GTFReader(ArrayList<String> int2Transcript) {
+        this.int2Transcript = int2Transcript;
+    }
 
     public HashMap<String, Transcript> read(File gtfFile) throws IOException {
         HashMap<String, Transcript> transcripts = new HashMap<>();
@@ -29,16 +40,24 @@ public class GTFReader {
                 // TODO decide features better?
                 if (!feature.equals("transcript") && !feature.equals("exon")) continue;
 
-                Matcher matcher = patternTranscriptID.matcher(fields[8]);
+                Matcher transcriptMatcher = patternTranscriptID.matcher(fields[8]);
+                Matcher geneMatcher = patternGeneID.matcher(fields[8]);
                 String transcriptId;
-
-
+                String geneId;
 
                 Transcript t;
-                if (matcher.find()) {
-                    transcriptId = matcher.group(1);
-                    t = transcripts.computeIfAbsent(transcriptId, k -> new Transcript()); // do not set info if exon comes before
+                if (transcriptMatcher.find()) {
+                    transcriptId = transcriptMatcher.group(1);
+                    t = transcripts.computeIfAbsent(transcriptId, k -> {
+                            Transcript k = new Transcript();
+                            int2Transcript.add(transcriptId);
+                            return k;
+                    }); // do not set info if exon comes before
                 } else continue;
+                if (geneMatcher.find()) {
+                    geneId = geneMatcher.group(1);
+                    t.setGene(geneId);
+                }
 
                 // set coordinates
                 if (feature.equals("transcript")) {
@@ -46,7 +65,6 @@ public class GTFReader {
                     t.setEnd(end);
                     t.setChr(chr);
                     t.setStrand(isNegative);
-                    // TODO: geneid
                 } else {
                     t.addExon(new Exon(start, end));
                 }

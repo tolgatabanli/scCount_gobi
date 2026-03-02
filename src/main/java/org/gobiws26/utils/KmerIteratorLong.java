@@ -1,6 +1,8 @@
 package org.gobiws26.utils;
 
 import it.unimi.dsi.fastutil.longs.LongIterator;
+import org.gobiws26.Config;
+
 import java.util.NoSuchElementException;
 
 public class KmerIteratorLong implements LongIterator {
@@ -16,7 +18,7 @@ public class KmerIteratorLong implements LongIterator {
 
     /**
      * @param sequence A sequence of bytes.
-     * @param k kmer size. Max allowed is 31. The higest two bits are for quality scores (e.g. N).
+     * @param k kmer size. Max allowed is 31. The highest two bits are for quality scores (e.g. N).
      */
     public KmerIteratorLong(byte[] sequence, int k) {
         if (k <= 0) throw new IllegalArgumentException("k must be positive");
@@ -85,6 +87,20 @@ public class KmerIteratorLong implements LongIterator {
         applyNFlag();
         windowStart++;
         return currentKmer;
+    }
+
+    private static short gmerMask = 0x3FFF; // take the rightmost 14 bits
+    public static short getMinimizer(long kmer) {
+        short biggest = gmerMask;
+        byte qualityBits = (byte) (kmer >>> (Config.K * 2));
+        for (int i = 0; i < Config.K - 7 + 1; i++) {
+            short currentGmer = (short) (kmer & gmerMask);
+            if (currentGmer < biggest) biggest = currentGmer;
+
+            kmer >>>= 2;
+        }
+        biggest |= (short) (qualityBits << 14); // 'infect' the quality from kmer to gmer
+        return biggest;
     }
 
     /**

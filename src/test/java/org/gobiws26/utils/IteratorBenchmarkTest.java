@@ -7,7 +7,7 @@ import org.gobiws26.genomicstruct.Transcript;
 import java.io.IOException;
 import java.util.HashMap;
 import org.junit.jupiter.api.Test;
-import static org.gobiws26.utils.Test.*;
+import static org.gobiws26.Test.*;
 
 public class IteratorBenchmarkTest {
 
