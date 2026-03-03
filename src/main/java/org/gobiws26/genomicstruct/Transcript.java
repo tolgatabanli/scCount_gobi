@@ -68,6 +68,10 @@ public class Transcript extends Region {
         this.threePrimeUTRLength += utrWidth;
     }
 
+    public int getThreePrimeUTRLength() {
+        return threePrimeUTRLength;
+    }
+
     @Override
     public String toString() {
         return "Transcript\t" + "chr:" + chromosome + "\t" + (isNegativeStranded ? "-" : "+") + "\t" + start + "-" + end;
