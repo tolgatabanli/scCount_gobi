@@ -17,13 +17,13 @@ public class LastBpFetcher {
     public static void main(String[] args) {
         final Path gtfPath = args.length > 0
                 ? Path.of(args[0])
-                : Path.of("data", "Sus_scrofa.Sscrofa11.1.gtf");
-        final Path outBedPath = Path.of("data", "bedfiles");
+                : Path.of("data", "10x.genes.gtf");
+        final Path outBedPath = Path.of("data", "human_bedfiles");
 
         try {
             Map<String, Transcript> transcripts = new GTFReader().read(gtfPath.toFile());
-            for(int k = 100; k <= 2000; k += 100) {
-                Path outBedPathForK = Path.of(outBedPath.getParent().toString(), "last_" + k + "_bp.bed");
+            for(int k = 100; k <= 3000; k += 150) {
+                Path outBedPathForK = Path.of(outBedPath.toString(), "last_" + k + "_bp.bed");
                 new LastBpFetcher().writeLastKBpsAsBed(transcripts, k, outBedPathForK);
                 System.out.println("Wrote BED: " + outBedPathForK.toAbsolutePath());
             }

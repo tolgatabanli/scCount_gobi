@@ -49,9 +49,9 @@ public class GTFReader {
                 if (transcriptMatcher.find()) {
                     transcriptId = transcriptMatcher.group(1);
                     t = transcripts.computeIfAbsent(transcriptId, k -> {
-                            Transcript k = new Transcript();
+                            Transcript x = new Transcript();
                             int2Transcript.add(transcriptId);
-                            return k;
+                            return x;
                     }); // do not set info if exon comes before
                 } else continue;
                 if (geneMatcher.find()) {

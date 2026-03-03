@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BED_DIR="data/bedfiles"
+BED_DIR="data/human_bedfiles"
 SPACERANGER_BAM_FILE="/mnt/raidbio2/extdata/praktikum/genprakt/genprakt-ws25/Block/pig-data-visium/Vis_66-10.spaceranger.bam"
+HUMAN_BAM_FILE="/mnt/biocluster/praktikum/genprakt/gruppe_a/reference/5k_Human_Donor1_PBMC_3p_gem-x_GEX_fastqs/pbmc_Aligned.sortedByCoord.out.bam"
 BAM_FILE="/home/t/tan/scCount_gobi/data/star_run/Aligned.sortedByCoord.out.bam"
-OUT_DIR="data/coverage_spaceranger_big"
+OUT_DIR="data/coverage_human"
 BEDTOOLS_BIN="/mnt/raidbio2/extsoft/software/bedtools/bedtools-2.31.1/bedtools2/bin/bedtools"
 MAX_JOBS=20
 
@@ -29,7 +30,7 @@ pids=()
 declare -A pid_to_out
 
 for k in $(seq 100 100 2000); do
-	bed_file="$BED_DIR/last_${k}_merged.bed"
+	bed_file="$BED_DIR/last_${k}_bp_merged.bed"
 	out_file="$OUT_DIR/last_${k}_bp_merged.tsv"
 
 	if [[ ! -f "$bed_file" ]]; then
@@ -38,7 +39,7 @@ for k in $(seq 100 100 2000); do
 	fi
 
 	(
-		"$BEDTOOLS_BIN" multicov -bed "$bed_file" -bams "$SPACERANGER_BAM_FILE" > "$out_file" 2>&1
+		"$BEDTOOLS_BIN" multicov -bed "$bed_file" -bams "$HUMAN_BAM_FILE" > "$out_file" 2>&1
 	) &
 	pid=$!
 	pids+=("$pid")
