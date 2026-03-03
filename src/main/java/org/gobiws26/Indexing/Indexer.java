@@ -51,7 +51,7 @@ public class Indexer {
             transcriptToIndex.put(txId, txCounter);
 
             byte[] seq = tf.fetchTranscriptSequenceOf(tx);
-            ShortSet minimSet = Minimizers.of(seq);
+            ShortArrayList minimSet = Minimizers.of(seq);
             for (short minimizer : minimSet) {
                 IntArrayList txList = minimizer2Transcripts.computeIfAbsent(minimizer, k -> new IntArrayList());
                 txList.add(txCounter);

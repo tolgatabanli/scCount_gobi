@@ -1,13 +1,14 @@
 package org.gobiws26.utils;
 
+import it.unimi.dsi.fastutil.shorts.ShortArrayList;
 import it.unimi.dsi.fastutil.shorts.ShortOpenHashSet;
 import it.unimi.dsi.fastutil.shorts.ShortSet;
 import org.gobiws26.Config;
 
 public class Minimizers {
-    public static ShortSet of(byte[] bases){
+    public static ShortArrayList of(byte[] bases){
         KmerIteratorLong kiLong = new KmerIteratorLong(bases, Config.K);
-        ShortSet minimSet = new ShortOpenHashSet();
+        ShortArrayList minimSet = new ShortArrayList();
 
         // For each Kmer in the read, find the minimizer and store pairwise different minimizers with the worst found quality assigned from kmers
         short currentMinim = getMinimizer(kiLong.nextLong());
