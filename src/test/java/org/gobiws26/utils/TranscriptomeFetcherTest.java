@@ -27,4 +27,12 @@ class TranscriptomeFetcherTest {
                 s);
     }
 
+    @Test
+    void tailFetchWorks() {
+        String s = TranscriptomeFetcher.getStringOf(
+                tf.fetchTranscriptSequenceOf(transcripts.get("ENSSSCT00000081764"), 10)
+        );
+        assertEquals("TGAATGTTGA", s);
+    }
+
 }
