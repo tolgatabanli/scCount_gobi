@@ -44,7 +44,8 @@ public class TranscriptomeFetcher {
      */
     public byte[] fetchTranscriptSequenceOfUTRPlus(Transcript t, int plus) {
         int tailLength = t.getThreePrimeUTRLength() + plus;
-        if (tailLength > t.getThreePrimeUTRLength()) tailLength = t.getTranscriptomicLength();
+        System.out.println(tailLength);
+        if (tailLength > t.getTranscriptomicLength()) tailLength = t.getTranscriptomicLength();
         return fetchTranscriptSequenceOf(t, tailLength);
     }
 

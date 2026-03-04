@@ -5,7 +5,6 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.HashMap;
 
@@ -15,14 +14,10 @@ import htsjdk.samtools.reference.ReferenceSequenceFile;
 import htsjdk.samtools.reference.ReferenceSequenceFileFactory;
 import htsjdk.samtools.fastq.FastqReader;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
-import it.unimi.dsi.fastutil.shorts.ShortOpenHashSet;
-import it.unimi.dsi.fastutil.shorts.ShortSet;
-import org.gobiws26.Indexing.Indexer;
+import it.unimi.dsi.fastutil.shorts.ShortArrayList;
 import org.gobiws26.Readers.GTFReader;
 import org.gobiws26.genomicstruct.Transcript;
-import org.gobiws26.utils.KmerIteratorLong;
 import org.gobiws26.utils.Minimizers;
-import org.gobiws26.utils.TranscriptomeFetcher;
 
 
 public class Main {
@@ -61,7 +56,7 @@ public class Main {
             // Iterate through the whole read2 file
             while (readTwoReader.hasNext()) {
                 FastqRecord theRead = readTwoReader.next();
-                ShortSet minimSet = Minimizers.of(theRead.getReadBases()); // TODO: qualities
+                ShortArrayList minimSet = Minimizers.of(theRead.getReadBases()); // TODO: qualities
                 readCounter++;
 
                 if (readCounter % 1_000_000 == 0) {
