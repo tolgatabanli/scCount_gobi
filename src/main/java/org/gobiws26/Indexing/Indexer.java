@@ -1,6 +1,8 @@
 package org.gobiws26.Indexing;
 
 import htsjdk.samtools.reference.ReferenceSequenceFile;
+import it.unimi.dsi.fastutil.ints.Int2ObjectArrayMap;
+import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntArrays;
 import it.unimi.dsi.fastutil.shorts.*;
@@ -9,9 +11,7 @@ import org.gobiws26.utils.Minimizers;
 import org.gobiws26.utils.TranscriptomeFetcher;
 
 import java.io.BufferedWriter;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -33,7 +33,6 @@ public class Indexer {
 
 
     public Indexer(HashMap<String, Transcript> transcripts, ArrayList<String> transcriptIDArray, ReferenceSequenceFile refSeqFile) {
-        this.transcriptIDArray = transcriptIDArray;
         this.transcripts = transcripts;
         this.refSeqFile = refSeqFile;
 
@@ -60,6 +59,41 @@ public class Indexer {
             txCounter++;
         }
     }
+
+    ConcurrentHashMap<Short, List<MinimizerPair>> minimizer2Occurrences;
+    Int2ObjectOpenHashMap<ShortArrayList> transcriptToMinimizerPath;
+    public void runIndex2() {
+        minimizer2Occurrences = new ConcurrentHashMap<>();
+        transcriptToMinimizerPath = new Int2ObjectOpenHashMap<>();
+
+        int txCounter = 0;
+        TranscriptomeFetcher tf = new TranscriptomeFetcher(refSeqFile);
+
+        for (Map.Entry<String, Transcript> txEntry : transcripts.entrySet()) {
+            Transcript tx = txEntry.getValue();
+            String txId = txEntry.getKey();
+            transcriptToIndex.put(txId, txCounter);
+
+            // 1) Find minimizers in order
+            byte[] seq = tf.fetchTranscriptSequenceOf(tx);
+            ShortArrayList minimizerPath = Minimizers.of(seq);
+
+            transcriptToMinimizerPath.put(txCounter, minimizerPath);
+
+            // map minimizer -> (txID, txPosition)
+            for (int pos = 0; pos < minimizerPath.size(); pos++) {
+                short minimizer = minimizerPath.getShort(pos);
+                MinimizerPair occurrence = new MinimizerPair(txCounter, pos);
+
+                minimizer2Occurrences.computeIfAbsent(minimizer, k -> Collections.synchronizedList(new ArrayList<>()))
+                        .add(occurrence);
+            }
+
+            txCounter++;
+        }
+    }
+
+
     // TODO: add thread
     // TODO: can give tail length as second arg
 
