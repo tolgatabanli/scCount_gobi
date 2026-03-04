@@ -37,4 +37,25 @@ public class Test {
         fasta.close();
     }
 
+     // ===================== \\
+    //        Utilities        \\
+
+    public static String shortToNucleotideString(short value) {
+        StringBuilder sequence = new StringBuilder();
+
+        // The first 2 bits are quality flags (ignore!).
+        for (int i = 12; i >= 0; i -= 2) {
+            int bits = (value >> i) & 0b11;
+
+            switch (bits) {
+                case 0b00 -> sequence.append('A');
+                case 0b01 -> sequence.append('C');
+                case 0b11 -> sequence.append('G');
+                case 0b10 -> sequence.append('T');
+            }
+        }
+
+        return sequence.toString();
+    }
+
 }
