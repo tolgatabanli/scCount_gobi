@@ -4,32 +4,53 @@ import org.gobiws26.Readers.GTFReader;
 import org.gobiws26.genomicstruct.Exon;
 import org.gobiws26.genomicstruct.Transcript;
 
+import htsjdk.samtools.reference.ReferenceSequence;
+import htsjdk.samtools.reference.ReferenceSequenceFileFactory;
+import htsjdk.samtools.reference.ReferenceSequenceFile;
 import java.io.BufferedWriter;
 import java.io.IOException;
+import java.nio.Buffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-
+import java.io.File;
 public class LastBpFetcher {
     public static void main(String[] args) {
         final Path gtfPath = args.length > 0
                 ? Path.of(args[0])
-                : Path.of("data", "10x.genes.gtf");
-        final Path outBedPath = Path.of("data", "human_bedfiles");
-
+                : Path.of("data", "Sus_scrofa.Sscrofa11.1.gtf");
+        final Path outBedPath = Path.of("data", "bedfiles_utr");
+        
         try {
             Map<String, Transcript> transcripts = new GTFReader().read(gtfPath.toFile());
-            for(int k = 100; k <= 3000; k += 150) {
+            /* 
+                for(int k = 100; k <= 2000; k += 100) {
                 Path outBedPathForK = Path.of(outBedPath.toString(), "last_" + k + "_bp.bed");
                 new LastBpFetcher().writeLastKBpsAsBed(transcripts, k, outBedPathForK);
                 System.out.println("Wrote BED: " + outBedPathForK.toAbsolutePath());
+                }
+                */
+            BufferedWriter writer = Files.newBufferedWriter(Path.of("data","kallisto_run", "transcript_gene_mapping.txt"));
+            File fastaFile = new File("data", "Sus_scrofa.Sscrofa11.1.dna.toplevel.fa");
+            ReferenceSequenceFile fasta = ReferenceSequenceFileFactory.getReferenceSequenceFile(fastaFile);
+            TranscriptomeFetcher transcriptomeFetcher = new TranscriptomeFetcher(fasta);
+            for (Map.Entry<String, Transcript> entry : transcripts.entrySet()) {
+                String transcriptId = entry.getKey();
+                Transcript transcript = entry.getValue();
+                byte[] utrPlusSeq = transcriptomeFetcher.fetchTranscriptSequenceOfUTRPlus(transcript, 500);
+                writer.write(transcriptId + "\t" + transcript.getGeneId());
+                writer.newLine();
+                //writer.write(TranscriptomeFetcher.getStringOf(utrPlusSeq));
+                //writer.newLine();
             }
+            writer.close();
         } catch (IOException e) {
             throw new RuntimeException("Failed to create BED from GTF: " + gtfPath.toAbsolutePath(), e);
         }
+        
     }
 
     public record BedEntry(String chrom, int chromStart, int chromEnd, String name, int score, char strand) {
@@ -45,10 +66,10 @@ public class LastBpFetcher {
         if (transcript.isNegativeStranded()) {
             exonsInTxOrder = exonsInTxOrder.reversed();
         }
+        int utr_length = transcript.getThreePrimeUTRLength();
+        int totalWidth = transcript.getTranscriptomicLength();
 
-        int totalWidth = exonsInTxOrder.stream().mapToInt(Exon::length).sum();
-
-        int excess = totalWidth - k;
+        int excess = totalWidth - (k + utr_length);
         int cumulative = 0;
         int firstKeepIndex = -1;
         int widthBeforeFirstKept = 0;
@@ -61,7 +82,7 @@ public class LastBpFetcher {
                 break;
             }
         }
-
+        //what if excess larger than total width?
         if (firstKeepIndex < 0) return List.of();
 
         List<Exon> selected = new ArrayList<>();
