@@ -1,9 +1,6 @@
 package org.gobiws26.utils;
 
 import it.unimi.dsi.fastutil.longs.LongIterator;
-import it.unimi.dsi.fastutil.shorts.ShortOpenHashSet;
-import it.unimi.dsi.fastutil.shorts.ShortSet;
-import org.gobiws26.Config;
 
 import java.util.NoSuchElementException;
 
@@ -25,7 +22,7 @@ public class KmerIteratorLong implements LongIterator {
     public KmerIteratorLong(byte[] sequence, int k) {
         if (k <= 0) throw new IllegalArgumentException("k must be positive");
         if (k > 31) throw new IllegalArgumentException("k cannot be larger than 31 (limit of 64-bit long with flag)");
-        if (k > sequence.length) throw new IllegalArgumentException("k cannot be larger than sequence length");
+        if (k > sequence.length) throw new TooShortSequenceException("k cannot be larger than sequence length");
 
         this.K = k;
         this.fullSeq = sequence;
@@ -40,6 +37,12 @@ public class KmerIteratorLong implements LongIterator {
             currentKmer |= nuc; // slide in the new nucleotide
         }
         applyNFlag();
+    }
+
+    public static class TooShortSequenceException extends IllegalArgumentException {
+        public TooShortSequenceException(String message) {
+            super(message);
+        }
     }
 
     public KmerIteratorLong(byte[] sequence, byte[] phredSequence, int k) {
