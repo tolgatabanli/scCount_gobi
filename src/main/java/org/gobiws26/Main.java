@@ -10,11 +10,14 @@ import java.util.HashMap;
 
 
 import htsjdk.samtools.fastq.FastqRecord;
+import htsjdk.samtools.reference.FastaSequenceFile;
 import htsjdk.samtools.reference.ReferenceSequenceFile;
 import htsjdk.samtools.reference.ReferenceSequenceFileFactory;
 import htsjdk.samtools.fastq.FastqReader;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.shorts.ShortArrayList;
+import org.gobiws26.Indexing.BinaryIndexWriter;
+import org.gobiws26.Indexing.Indexer;
 import org.gobiws26.Readers.GTFReader;
 import org.gobiws26.genomicstruct.Transcript;
 import org.gobiws26.utils.Minimizers;
@@ -26,26 +29,29 @@ public class Main {
     public static File gtfFile = null;
     public static File readTwoFile = null;
 
+    private static File indexFile = null;
+
+    public static final int PROGRAM_IDENTIFIER = 0x474F4249; // "GOBI"
+
     public static void main(String[] args) throws IOException {
-        //if (args[0].equals("index")) argParserIndex(args);
-        //else if (args[0].equals("count")) argParserCount(args);
-        //else {
-        // System.err.println("Could not identify command: " + args[0])
-        // printHelp()
-        //}
-        argParser(args);
+        if (args[0].equals("index")) {
+            // GTF gives a number to transcripts (the order in the below list)
+            ArrayList<String> int2Transcript = new ArrayList<>();
+            HashMap<String, Transcript> transcripts = (new GTFReader(int2Transcript)).read(gtfFile);
 
-        // GTF gives a number to transcripts (the order in the below list)
-        ArrayList<String> int2Transcript = new ArrayList<>();
-        HashMap<String, Transcript> transcripts = (new GTFReader(int2Transcript)).read(gtfFile);
-
-        //Indexer indexer = new Indexer(int2Transcript, transcripts);
-
-        Transcript debugT = transcripts.get("ENSSSCT00000092142");
-
-        try (ReferenceSequenceFile fasta = ReferenceSequenceFileFactory.getReferenceSequenceFile(fastaRef)) {
-            byte[] debugSeq = fasta.getSubsequenceAt(debugT.getChr(), debugT.getStart(), debugT.getEnd()).getBases();
+            Indexer indexer = new Indexer(transcripts, ReferenceSequenceFileFactory.getReferenceSequenceFile(fastaRef));
+            indexer.runIndex();
+            BinaryIndexWriter.write(indexFile, indexer);
         }
+
+        else if (args[0].equals("count")) argParserCount(args);
+        else {
+            System.err.println("Could not identify command: " + args[0]);
+            printHelp();
+            System.exit(1);
+        }
+
+
 
         long startTime = System.nanoTime();
         int readCounter = 0;
@@ -89,7 +95,7 @@ public class Main {
 
 
 
-    private static void argParser(String[] args) {
+    private static void argParserIndex(String[] args) {
         if (args.length == 0 || args[0].equals("-h") || args[0].equals("--help")) {
             printHelp();
             System.exit(0);
@@ -124,20 +130,20 @@ public class Main {
                     }
                     break;
 
-                case "-r2":
-                    if (i + 1 < args.length) {
-                        readTwoFile = new File(args[++i]);
-                    } else {
-                        System.err.println("Error: [-r2] Please specify a read file in FASTQ format!");
-                        System.exit(1);
-                    }
-                    break;
-
                 case "-k":
                     if (i + 1 < args.length) {
                         Config.K = Integer.parseInt(args[++i]);
                     } else {
                         System.err.println("Error: [-k] Please specify a K!");
+                        System.exit(1);
+                    }
+                    break;
+
+                case "-idx":
+                    if (i + 1 < args.length) {
+                        indexFile = new File(args[++i]);
+                    } else {
+                        System.err.println("Error: [-idx] Please specify an index file to be written!");
                         System.exit(1);
                     }
                     break;
@@ -153,6 +159,22 @@ public class Main {
         if (fastaRef == null) {
             System.err.println("Error: Please specify a fasta file!");
         }
+    }
+
+    public static void argParserCount(String[] args) {
+        for (int i = 0; i < args.length; i++) {
+            switch (args[i]) {
+                case "-r2":
+                    if (i + 1 < args.length) {
+                        readTwoFile = new File(args[++i]);
+                    } else {
+                        System.err.println("Error: [-r2] Please specify a read file in FASTQ format!");
+                        System.exit(1);
+                    }
+                    break;
+            }
+        }
+
 
     }
 
