@@ -1,6 +1,5 @@
 package org.gobiws26.Indexing;
 
-import it.unimi.dsi.fastutil.ints.Int2IntMap;
 import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.shorts.ShortArrayList;
@@ -46,16 +45,16 @@ public class BinaryIndexReader {
             // 3) Read Tx -> Minimizers
             int numPaths = dis.readInt();
             if (numPaths != numTx) {
-                throw new IOException("Mismatch between transcript count and path count.");
+                throw new IOException("While reading binary index file: Mismatch between transcript count and path count.");
             }
 
             // 4) construct indexing graph
             IndexGraph graph = new IndexGraph();
 
-            Int2IntMap tx2minimCount = new Int2IntOpenHashMap();
+            int[] tx2minimCount = new int[numTx];
             for (int txId = 0; txId < numPaths; txId++) {
                 int pathLength = dis.readInt();
-                tx2minimCount.put(txId, pathLength);
+                tx2minimCount[txId] = pathLength;
                 if (pathLength > 0) {
                     ShortArrayList path = new ShortArrayList(pathLength);
                     for (int p = 0; p < pathLength; p++) {

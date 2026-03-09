@@ -18,7 +18,7 @@ public class IndexGraph {
 
     private int size = 0;
     private final Short2ObjectOpenHashMap<Node> minim2Node = new Short2ObjectOpenHashMap<>();
-    private Int2IntMap tx2minimCount;
+    private int[] tx2minimCount;
 
 
     // Edge: directed transition between two minimizers
@@ -133,12 +133,13 @@ public class IndexGraph {
     // -------------------------------------------------------------------------
     public static class Node {
         private final IntOpenHashSet txIds = new IntOpenHashSet();
+        private final BitSet containingTranscripts = new BitSet();
 
         // Edge has (txId, position)
         private final Short2ObjectOpenHashMap<Edge> outEdges = new Short2ObjectOpenHashMap<>();
 
         void recordTranscript(int txId) {
-            txIds.add(txId);
+            containingTranscripts.set(txId);
         }
 
         /**
@@ -150,8 +151,8 @@ public class IndexGraph {
             edge.addOccurrence(txId, positionOfSource);
         }
 
-        public IntSet getTranscripts() {
-            return IntSets.unmodifiable(txIds);
+        public BitSet getTranscriptsBitSet() {
+            return containingTranscripts;
         }
 
         public Short2ObjectOpenHashMap<Edge> getOutEdges() {
@@ -191,12 +192,12 @@ public class IndexGraph {
 
     public int getSize() { return size; }
 
-    public void setTx2minimCount(Int2IntMap tx2minimCount) {
+    public void setTx2minimCount(int[] tx2minimCount) {
         this.tx2minimCount = tx2minimCount;
     }
 
     public int getMinimCountOfTranscript(int txId) {
-        return tx2minimCount.get(txId);
+        return tx2minimCount[txId];
     }
 
     public void freezeGraph() {
