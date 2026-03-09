@@ -29,8 +29,18 @@ public class IndexGraphTraversal {
     }
 
     // for benchmarking/logging
-    private int readsFoundHeuristically = 0;
-    private int readsFoundWithAlignment = 0;
+    private int numReadsFoundHeuristically = 0;
+
+    public int getNumReadsFoundHeuristically() {
+        return numReadsFoundHeuristically;
+    }
+
+    private int numReadsFoundWithAlignment = 0;
+
+    public int getNumReadsFoundWithAlignment() {
+        return numReadsFoundWithAlignment;
+    }
+
     public void process(FastqRecord read) {
         ShortArrayList minims = Minimizers.of(read.getReadBases(), read.getBaseQualities());
         if (minims.isEmpty()) return;
@@ -68,12 +78,12 @@ public class IndexGraphTraversal {
                     int txId = validated.iterator().nextInt();
                     txCounts.merge(txId, 1, Integer::sum);
                     geneCounts.merge(tx2geneMapping.get(txId), 1, Integer::sum);
-                    readsFoundHeuristically++;
+                    numReadsFoundHeuristically++;
                     return;
                 } else if (geneId != -1) {
                     // Unambiguous gene
                     geneCounts.merge(geneId, 1, Integer::sum);
-                    readsFoundHeuristically++;
+                    numReadsFoundHeuristically++;
                     return;
                 }
             }
@@ -147,8 +157,9 @@ public class IndexGraphTraversal {
         } else if (geneId != -1) {
             geneCounts.merge(geneId, 1, Integer::sum);
         } else {
-            ambigReads++;
+            ambigReads++; return;
         }
+        numReadsFoundWithAlignment++;
     }
 
 
