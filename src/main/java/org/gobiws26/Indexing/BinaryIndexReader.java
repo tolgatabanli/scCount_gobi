@@ -1,5 +1,6 @@
 package org.gobiws26.Indexing;
 
+import it.unimi.dsi.fastutil.ints.Int2IntMap;
 import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.shorts.ShortArrayList;
@@ -14,8 +15,8 @@ import static org.gobiws26.Main.PROGRAM_IDENTIFIER;
 
 public class BinaryIndexReader {
 
-    public static IndexData read(String filePath) throws IOException {
-        try (DataInputStream dis = new DataInputStream(new BufferedInputStream(new FileInputStream(filePath)))) {
+    public static IndexData read(File indexFile) throws IOException {
+        try (DataInputStream dis = new DataInputStream(new BufferedInputStream(new FileInputStream(indexFile)))) {
 
             // Verify Header
             int magic = dis.readInt();
@@ -51,8 +52,10 @@ public class BinaryIndexReader {
             // 4) construct indexing graph
             IndexGraph graph = new IndexGraph();
 
+            Int2IntMap tx2minimCount = new Int2IntOpenHashMap();
             for (int txId = 0; txId < numPaths; txId++) {
                 int pathLength = dis.readInt();
+                tx2minimCount.put(txId, pathLength);
                 if (pathLength > 0) {
                     ShortArrayList path = new ShortArrayList(pathLength);
                     for (int p = 0; p < pathLength; p++) {
@@ -61,6 +64,8 @@ public class BinaryIndexReader {
                     graph.addTxPath(txId, path);
                 }
             }
+            graph.setTx2minimCount(tx2minimCount);
+            graph.freezeGraph();
 
             return new IndexData(graph, int2TxString, int2GeneString, txInt2GeneInt);
         }

@@ -2,15 +2,11 @@ package org.gobiws26.Indexing;
 
 import htsjdk.samtools.reference.ReferenceSequenceFile;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
-import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.shorts.*;
 import org.gobiws26.genomicstruct.Transcript;
 import org.gobiws26.utils.Minimizers;
 import org.gobiws26.utils.TranscriptomeFetcher;
-
-import java.io.BufferedWriter;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Takes an output file and transcriptome to write an index file that maps the following information:
@@ -58,10 +54,10 @@ public class Indexer {
             Transcript tx = txEntry.getValue();
 
             // 1. Validate the sequence FIRST
-            byte[] seq = tf.fetchTranscriptSequenceOf(tx);
+            byte[] seq = tf.fetchTranscriptSequenceOf(tx, 500); // TODO: Magic number
             ShortArrayList minimizerPath;
             try {
-                minimizerPath = Minimizers.of(seq);
+                minimizerPath = Minimizers.of(seq, null);
             } catch (IllegalArgumentException e) {
                 // Log and skip entirely
                 continue;
