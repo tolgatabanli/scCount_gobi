@@ -10,7 +10,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 public class KmerIteratorTests {
     byte[] s = tf.fetchTranscriptSequenceOf(transcripts.get("ENSSSCT00000081764"));
-    KmerIteratorLong kiLong = new KmerIteratorLong(s, 20);
+    KmerIteratorLong kiLong = new KmerIteratorLong(s, null, 20);
     long firstKmer = kiLong.nextLong(); // "CTGGAGGAGGACGCATGCAA"
 
 

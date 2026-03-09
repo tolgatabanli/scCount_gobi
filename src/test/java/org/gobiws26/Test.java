@@ -18,7 +18,7 @@ public class Test {
     public static File fastaFile = new File("/mnt/raidbio2/extdata/praktikum/genprakt/genprakt-ws25/Block/pig-genome/Sus_scrofa.Sscrofa11.1.dna.toplevel.fa.gz");
     public static File fastaIndex = new File("/mnt/raidbio2/extdata/praktikum/genprakt/genprakt-ws25/Block/pig-genome/Sus_scrofa.Sscrofa11.1.dna.toplevel.fa.gz.fai");
     public static File gtfFile = new File("/mnt/raidbio2/extdata/praktikum/genprakt/genprakt-ws25/Block/pig-genome/Sus_scrofa.Sscrofa11.1.115.chr.gtf.gz");
-    public static File indexFile = new File("/mnt/cip/home/t/tabanli/Desktop/scCount/out/sccount.idx");
+    public static File indexFile = new File("/mnt/cip/home/t/tabanli/Desktop/scCount/out/sccount_tests.idx");
     public static HashMap<String, Transcript> transcripts;
     public static ReferenceSequenceFile fasta = ReferenceSequenceFileFactory.getReferenceSequenceFile(fastaFile);
     public static TranscriptomeFetcher tf = new TranscriptomeFetcher(fasta);
