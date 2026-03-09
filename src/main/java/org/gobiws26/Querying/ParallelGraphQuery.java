@@ -28,12 +28,6 @@ public class ParallelGraphQuery {
         this.globalTxCounts   = new Int2IntOpenHashMap();
     }
 
-    /**
-     * Convenience constructor that uses all available hardware threads.
-     */
-    public ParallelGraphQuery(IndexGraph g, Int2IntMap tx2gene) {
-        this(g, tx2gene, Runtime.getRuntime().availableProcessors());
-    }
 
     /**
      * Process a batch of reads in parallel. Results accumulate across multiple
@@ -69,8 +63,6 @@ public class ParallelGraphQuery {
 
         mergeBatchResults(workers);
         System.out.println("Total ambiguous reads: " + totalAmbigReads);
-        System.out.println("Num reads found heuristically: " + numReadsFoundHeuristically);
-        System.out.println("Num reads found with quasi-align: "+ numReadsFoundWithAlignment);
     }
 
     /**
@@ -110,8 +102,4 @@ public class ParallelGraphQuery {
     private int numReadsFoundHeuristically = 0;
     private int numReadsFoundWithAlignment = 0;
 
-    @Deprecated
-    private void mergeResults(List<IndexGraphTraversal> workers) {
-        mergeBatchResults(workers);
-    }
 }
