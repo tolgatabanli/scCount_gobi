@@ -27,14 +27,6 @@
             <scope>test</scope>
         </dependency>
 
-        <!-- Source: https://mvnrepository.com/artifact/it.unimi.dsi/sux4j -->
-        <dependency>
-            <groupId>it.unimi.dsi</groupId>
-            <artifactId>sux4j</artifactId>
-            <version>5.4.1</version>
-            <scope>compile</scope>
-        </dependency>
-
         <!-- Source: https://mvnrepository.com/artifact/it.unimi.dsi/fastutil -->
         <dependency>
             <groupId>it.unimi.dsi</groupId>
