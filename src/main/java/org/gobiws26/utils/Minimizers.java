@@ -4,8 +4,8 @@ import it.unimi.dsi.fastutil.shorts.ShortArrayList;
 import org.gobiws26.Config;
 
 public class Minimizers {
-    public static ShortArrayList of(byte[] bases){
-        KmerIteratorLong kiLong = new KmerIteratorLong(bases, Config.K);
+    public static ShortArrayList of(byte[] bases, byte[] phredSeq) {
+        KmerIteratorLong kiLong = new KmerIteratorLong(bases, phredSeq, Config.K);
         ShortArrayList minimSet = new ShortArrayList();
 
         // For each Kmer in the read, find the minimizer and store pairwise different minimizers with the worst found quality assigned from kmers
