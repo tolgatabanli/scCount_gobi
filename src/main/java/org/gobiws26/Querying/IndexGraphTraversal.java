@@ -6,6 +6,7 @@ import it.unimi.dsi.fastutil.shorts.ShortArrayList;
 import org.gobiws26.utils.Minimizers;
 
 import java.util.Arrays;
+import java.util.BitSet;
 
 
 public class IndexGraphTraversal {
@@ -45,19 +46,19 @@ public class IndexGraphTraversal {
         ShortArrayList minims = Minimizers.of(read.getReadBases(), read.getBaseQualities());
         if (minims.isEmpty()) return;
 
-        // 1) Heuristic: intersect transcripts of all minimizers -> get transcripts -> see if single transcript of gene
-        IntOpenHashSet candidates = null;
+        // 1) Heuristic/ideal case: intersect transcripts of all minimizers -> get transcripts -> see if single transcript of gene
+        BitSet candidates = null;
         int exploredCount = 0;
 
         for (int i = 0; i < minims.size(); i++) {
             IndexGraph.Node node = g.getNode(minims.getShort(i));
-            if (node == null) { candidates = new IntOpenHashSet(); break; }
+            if (node == null) { candidates = new BitSet(); break; }
 
-            IntSet nodeTxs = node.getTranscripts();
+            BitSet nodeTxs = node.getTranscriptsBitSet();
             if (candidates == null) {
-                candidates = new IntOpenHashSet(nodeTxs);
+                candidates = (BitSet) nodeTxs.clone();
             } else {
-                candidates.retainAll(nodeTxs);
+                candidates.and(nodeTxs); // retainAll / intersection
             }
             exploredCount = i + 1;
 
@@ -69,13 +70,13 @@ public class IndexGraphTraversal {
 
         if (!candidates.isEmpty()) {
             // Verify order-preserving path for explored minimizers on each candidate
-            IntOpenHashSet validated = verifyOrderedPath(minims, exploredCount, candidates);
+            BitSet validated = verifyOrderedPath(minims, exploredCount, candidates);
 
             if (!validated.isEmpty()) {
                 int geneId = getGeneIfAllIsoforms(validated);
                 if (validated.size() == 1) {
                     // Unambiguous transcript
-                    int txId = validated.iterator().nextInt();
+                    int txId = validated.nextSetBit(0);
                     txCounts.merge(txId, 1, Integer::sum);
                     geneCounts.merge(tx2geneMapping.get(txId), 1, Integer::sum);
                     numReadsFoundHeuristically++;
@@ -88,7 +89,6 @@ public class IndexGraphTraversal {
                 }
             }
         }
-        readsFoundWithAlignment++;
 
         // 2) quasi-alignment
         int txCount = tx2geneMapping.size();
@@ -163,25 +163,34 @@ public class IndexGraphTraversal {
     }
 
 
-    private IntOpenHashSet verifyOrderedPath(ShortArrayList minims, int exploredCount, IntOpenHashSet candidates) {
-        IntOpenHashSet valid = new IntOpenHashSet(candidates);
+    private BitSet verifyOrderedPath(ShortArrayList minims, int exploredCount, BitSet candidates) {
+        BitSet valid = (BitSet) candidates.clone();
 
         for (int i = 0; i + 1 < exploredCount && !valid.isEmpty(); i++) {
             IndexGraph.Node curNode = g.getNode(minims.getShort(i));
-            if (curNode == null) return new IntOpenHashSet();
+            if (curNode == null) return new BitSet();
 
             IndexGraph.Edge edge = curNode.getEdgeTo(minims.getShort(i + 1));
-            if (edge == null) return new IntOpenHashSet();
+            if (edge == null) return new BitSet();
 
-            IntIterator it = valid.iterator();
-            while (it.hasNext()) {
-                int txId = it.nextInt();
+            for (int txId = valid.nextSetBit(0); txId >= 0; txId = valid.nextSetBit(txId + 1)) {
                 IntArrayList positions = edge.getPositionsForTx(txId);
                 // Position at step i must be exactly i (0-indexed consecutive path)
-                if (!positions.contains(i)) it.remove();
+                if (!positions.contains(i)) valid.clear(txId);
             }
         }
         return valid;
+    }
+
+    private int getGeneIfAllIsoforms(BitSet txSet) {
+        if (txSet.isEmpty()) return -1;
+        int geneId = -1;
+        for (int tx = txSet.nextSetBit(0); tx >= 0; tx = txSet.nextSetBit(tx + 1)) {
+            int g = tx2geneMapping.get(tx);
+            if (geneId == -1) geneId = g;
+            else if (geneId != g) return -1;
+        }
+        return geneId;
     }
 
     private int getGeneIfAllIsoforms(IntOpenHashSet txSet) {
