@@ -69,15 +69,8 @@ public class ParallelGraphQuery {
 
         mergeBatchResults(workers);
         System.out.println("Total ambiguous reads: " + totalAmbigReads);
-    }
-
-    /**
-     * Process all reads in one call. For backward compatibility or small read sets.
-     */
-    public void processAll(List<FastqRecord> allReads) throws InterruptedException {
-        processBatch(allReads);
-        shutdown();
-        System.out.println("Total ambiguous reads: " + totalAmbigReads);
+        System.out.println("Num reads found heuristically: " + numReadsFoundHeuristically);
+        System.out.println("Num reads found with quasi-align: "+ numReadsFoundWithAlignment);
     }
 
     /**
@@ -109,10 +102,13 @@ public class ParallelGraphQuery {
                     globalGeneCounts.addTo(e.getIntKey(), e.getIntValue()));
             worker.getTxCounts().int2IntEntrySet().fastForEach(e ->
                     globalTxCounts.addTo(e.getIntKey(), e.getIntValue()));
-
+            numReadsFoundHeuristically += worker.getNumReadsFoundHeuristically();
+            numReadsFoundWithAlignment += worker.getNumReadsFoundWithAlignment();
             this.totalAmbigReads += worker.getAmbigReads();
         }
     }
+    private int numReadsFoundHeuristically = 0;
+    private int numReadsFoundWithAlignment = 0;
 
     @Deprecated
     private void mergeResults(List<IndexGraphTraversal> workers) {
