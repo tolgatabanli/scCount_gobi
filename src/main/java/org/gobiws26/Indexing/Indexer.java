@@ -46,15 +46,15 @@ public class Indexer {
         List<Integer> txToGeneList = new ArrayList<>();
 
         TranscriptomeFetcher tf = new TranscriptomeFetcher(refSeqFile);
-        int internalId = 0;
-        int geneCounter = 0;
+        int internalTxId = 0;
+        int internalGeneId = 0;
 
         for (Map.Entry<String, Transcript> txEntry : transcripts.entrySet()) {
             String txId = txEntry.getKey();
             Transcript tx = txEntry.getValue();
 
             // 1. Validate the sequence FIRST
-            byte[] seq = tf.fetchTranscriptSequenceOf(tx, 500); // TODO: Magic number
+            byte[] seq = tf.fetchTranscriptSequenceOfUTRPlus(tx, 500); // TODO: Magic number
             ShortArrayList minimizerPath;
             try {
                 minimizerPath = Minimizers.of(seq, null);
@@ -63,20 +63,19 @@ public class Indexer {
                 continue;
             }
 
-            // 2. Now that we know it's valid, assign IDs
-            this.transcriptToIndex.put(txId, internalId);
-            this.transcriptToMinimizerPath.put(internalId, minimizerPath);
+            this.transcriptToIndex.put(txId, internalTxId);
+            this.transcriptToMinimizerPath.put(internalTxId, minimizerPath);
             validTxIds.add(txId);
 
-            // 3. Handle Gene Mapping
+            // gene -> int
             String geneId = tx.getGeneId();
-            int finalGeneCounter = geneCounter;
+            int finalGeneCounter = internalGeneId;
             int geneIdx = geneToIndex.computeIfAbsent(geneId, k -> finalGeneCounter);
-            if (geneIdx == geneCounter) geneCounter++;
+            if (geneIdx == internalGeneId) internalGeneId++;
 
             txToGeneList.add(geneIdx);
 
-            internalId++;
+            internalTxId++;
         }
 
         this.txIdArray = validTxIds.toArray(new String[0]);
