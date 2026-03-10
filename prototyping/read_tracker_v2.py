@@ -3,22 +3,27 @@
 import pysam
 import argparse
 import heapq
+import itertools
 import pyranges as pr
 from bx.intervals.intersection import IntervalTree, Interval
 import pandas as pd
 
 
 interval_trees = {}
-padding = 500
+padding = int
+tracked_reads = set()
 seen_in_a = set()
 seen_in_b = set()
 not_present_in_a = set()
 not_present_in_b = set()
 paralogous = set()
 repeat = set()
+filtered_by_quality = set()
+read_status = {}
 gtf_annotation = pr.PyRanges()
 repeat_annotation = pr.PyRanges()
-
+priority_counter = itertools.count()
+skip_intergenic = False
 
 class Locus:
     chromosome: str
@@ -66,6 +71,8 @@ def parse_args():
     parser.add_argument("-s", "--start_range", help="Start range for tracking", required=True)
     parser.add_argument("-g", "--gtf", help="Path to GTF annotation file", required=True)
     parser.add_argument("-r", "--repeats", help="Path to RepeatMasker .out file", required=True)
+    parser.add_argument("--padding", help="Padding around loci for considering reads as mapped to the locus", type=int, default=500)
+    parser.add_argument("--skip_inter_genic", help="Whether to skip loci that do not overlap any gene annotation", action="store_true")
     return parser.parse_args()
 
 
@@ -88,7 +95,6 @@ def load_repeats(repeats_file):
     df["Feature"] = "repeat"
     df["Strand"] = "."
     repeat_annotation = pr.PyRanges(df)
-    print("repeat columns:", repeat_annotation.df.columns)
 
 
 #TODO to be implemente
@@ -116,6 +122,35 @@ def is_repeat(source_locus, target_locus):
 #return only locis where reads are mapped in on side but not the other and not explained
 
 
+def mark_mapped_elsewhere(read_id, source_side):
+    read_status[read_id] = "mapped_elsewhere"
+    filtered_by_quality.discard(read_id)
+    if source_side == "a":
+        not_present_in_a.discard(read_id)
+        seen_in_a.add(read_id)
+    else:
+        not_present_in_b.discard(read_id)
+        seen_in_b.add(read_id)
+
+
+def mark_filtered_in_other(read_id, source_side):
+    if read_status.get(read_id) == "mapped_elsewhere":
+        return
+    read_status[read_id] = "filtered_by_quality"
+    filtered_by_quality.add(read_id)
+
+
+def mark_not_present_in_other(read_id, source_side):
+    if read_status.get(read_id) == "mapped_elsewhere":
+        return
+    read_status[read_id] = "not_present_in_other_bam"
+    filtered_by_quality.discard(read_id)
+    if source_side == "a":
+        not_present_in_a.add(read_id)
+    else:
+        not_present_in_b.add(read_id)
+
+
 def get_mapping_diff(locus: Locus, bam_a, bam_b, indices):
     # maybe add quality filter ?
     # consider strand specificity ?
@@ -134,6 +169,8 @@ def get_mapping_diff(locus: Locus, bam_a, bam_b, indices):
     #reads only in a or b that maps to the current locus look in the other for them
     only_in_a = bam_a_ids - bam_b_ids
     only_in_b = bam_b_ids - bam_a_ids
+    tracked_reads.update(only_in_a)
+    tracked_reads.update(only_in_b)
     #locus where reads are mapped to in a that appeared 'here' b and vice versa
     target_loci_a = get_loci(only_in_b, "a", indices, locus)
     target_loci_b = get_loci(only_in_a, "b", indices, locus)
@@ -145,7 +182,6 @@ def get_mapping_diff(locus: Locus, bam_a, bam_b, indices):
 def get_loci(read_ids, source_side, indices, source_locus):
     loci = set()
     seen_in_other = seen_in_b if source_side == "a" else seen_in_a
-    seen_in_this = seen_in_a if source_side == "a" else seen_in_b
     for read_id in read_ids:
         if read_id in seen_in_other:
             continue
@@ -153,21 +189,29 @@ def get_loci(read_ids, source_side, indices, source_locus):
         try:
             read_iter = index.find(read_id)
         except KeyError:
-            if source_side == "a":
-                not_present_in_b.add(read_id)
-            else:
-                not_present_in_a.add(read_id)
+            mark_not_present_in_other(read_id, source_side)
             continue
+        found_passing_alignment = False
         for read in read_iter:
-            seen_in_this.add(read_id)
+            if not quality_filter(read):
+                continue
+            found_passing_alignment = True
+            mark_mapped_elsewhere(read_id, source_side)
             locus = get_locus(read, source_side, indices)
             loci.add(locus)
+        if not found_passing_alignment:
+            mark_filtered_in_other(read_id, source_side)
+    to_be_removed = set()
     for locus in loci:
+        locus_reads = locus.reads_in_a if source_side == "a" else locus.reads_in_b
+        tracked_locus_reads = locus_reads & read_ids
         if is_paralogs(source_locus, locus):
-            paralogous.add(locus.reads_in_a if source_side == "a" else locus.reads_in_b)
+            paralogous.update(tracked_locus_reads)
+            to_be_removed.add(locus)
         if is_repeat(source_locus, locus):
-            repeat.add(locus.reads_in_a if source_side == "a" else locus.reads_in_b)
-        loci.remove(locus)
+            repeat.update(tracked_locus_reads)
+            to_be_removed.add(locus)
+    loci = loci - to_be_removed
 
     return loci
 
@@ -188,7 +232,7 @@ def get_locus(read, source_side, indices):
             candidates_interval,
             key=lambda interval: min(interval.end, read.reference_end) - max(interval.start, read.reference_start)
         )
-        locus = best_interval.value
+        locus = best_interval
     else:
         locus = Locus(contig, read.reference_start, read.reference_end)
     locus.add_read(read, source_side)
@@ -201,6 +245,8 @@ def quality_filter(read):
     if read.mapping_quality < 255:
         return False
     if read.is_secondary or read.is_supplementary:
+        return False
+    if read.is_unmapped or read.reference_start is None or read.reference_end is None:
         return False
     if read.cigartuples:
         ##check if read contains a junction that is to big
@@ -220,7 +266,8 @@ def query_annotation(annotation, contig, start, end, feature):
         "End": [end]
     })
     hits = annotation.overlap(query).df
-    print(hits.columns)
+    if feature not in hits.columns:
+        return set()
     return set(hits[feature].dropna())
 
 def add_locus_to_tree(contig, locus:Locus):
@@ -254,25 +301,45 @@ def load_parameters(args):
         "a": name_index_a,
         "b": name_index_b
     }
+    global padding
+    padding = args.padding
+    if args.skip_inter_genic:
+        global skip_intergenic
+        skip_intergenic = True
     return bam_a, bam_b, indices
+
+def make_priority_entry(locus, source_side):
+    read_count = len(locus.reads_in_a) if source_side == "a" else len(locus.reads_in_b)
+    return (-read_count, next(priority_counter), locus)
 
 def push_to_queue(loci_in_a, loci_in_b, priority_queue):
     queue_a = []
     #pushes loci in two heaps based on number of reads in the respective side
     #and merges into one heap later
     for locus in loci_in_a:
-        heapq.heappush(queue_a, (-len(locus.reads_in_a), locus))
+        heapq.heappush(queue_a, make_priority_entry(locus, "a"))
     queue_b = []
     for locus in loci_in_b:
-        heapq.heappush(queue_b, (-len(locus.reads_in_b), locus))
+        heapq.heappush(queue_b, make_priority_entry(locus, "b"))
     while queue_a:
         heapq.heappush(priority_queue, heapq.heappop(queue_a))
     while queue_b:
         heapq.heappush(priority_queue, heapq.heappop(queue_b))
+
+
 def main():
     args = parse_args()
     bam_a, bam_b, indices= load_parameters(args)
-
+    global tracked_reads, seen_in_a, seen_in_b, not_present_in_a, not_present_in_b, paralogous, repeat, filtered_by_quality, read_status
+    tracked_reads = set()
+    seen_in_a = set()
+    seen_in_b = set()
+    not_present_in_a = set()
+    not_present_in_b = set()
+    paralogous = set()
+    repeat = set()
+    filtered_by_quality = set()
+    read_status = {}
     contig, interval = args.start_range.split(":")
     contig = contig.replace("chr", "")
     start, end = map(int, interval.replace(",","").split("-"))
@@ -286,25 +353,38 @@ def main():
     visited = set()
     visited.add(seed)
     while priority_queue:
-        neg_count, locus = heapq.heappop(priority_queue)
+        neg_count, _, locus = heapq.heappop(priority_queue)
         if locus in visited:
             continue
         visited.add(locus)
         print('visiting locus:', locus.chromosome, locus.start, locus.end, f'{locus.associated_genes}', f'{locus.associated_transcripts}')
         loci_in_a, loci_in_b = get_mapping_diff(locus, bam_a, bam_b, indices)
         push_to_queue(loci_in_a, loci_in_b, priority_queue)
-    seen_reads = seen_in_a.union(seen_in_b)
 
-    print("seen_reads:", len(seen_reads))
-    print(f"not present in a {len(not_present_in_a)} ({len(not_present_in_a)/len(seen_reads)*100:.2f}%)")
-    print(f"not present in b {len(not_present_in_b)} ({len(not_present_in_b)/len(seen_reads)*100:.2f}%)")
-    print(f"paralogous {len(paralogous)} ({len(paralogous)/len(seen_reads)*100:.2f}%)")
-    print(f"repeat {len(repeat)} ({len(repeat)/len(seen_reads)*100:.2f}%)")
+    total_tracked_reads = len(tracked_reads)
+    mapped_elsewhere = {read_id for read_id, status in read_status.items() if status == "mapped_elsewhere"}
+    missing_in_other = {read_id for read_id, status in read_status.items() if status == "not_present_in_other_bam"}
+    filtered_reads = {read_id for read_id, status in read_status.items() if status == "filtered_by_quality"}
+    classified_reads = mapped_elsewhere | missing_in_other | filtered_reads
+    unclassified_reads = tracked_reads - classified_reads
+
+    print("total visited loci:", len(visited))
+    print("tracked reads:", total_tracked_reads)
+    print("mapped else where in a:", len(seen_in_a))
+    print("mapped else where in b:", len(seen_in_b))
+    if total_tracked_reads:
+        if unclassified_reads:
+            print(f"warning: {len(unclassified_reads)} tracked reads were not assigned a terminal status")
+        print(f"mapped else where {len(mapped_elsewhere)} ({len(mapped_elsewhere)/total_tracked_reads*100:.2f}%)")
+        print(f"not present in other bam {len(missing_in_other)} ({len(missing_in_other)/total_tracked_reads*100:.2f}%)")
+        print(f"filtered by quality {len(filtered_reads)} ({len(filtered_reads)/total_tracked_reads*100:.2f}%)")
+        print(f"paralogous {len(paralogous)} ({len(paralogous)/total_tracked_reads*100:.2f}%)")
+        print(f"repeat {len(repeat)} ({len(repeat)/total_tracked_reads*100:.2f}%)")
+    else:
+        print("mapped else where 0 (0.00%)")
+        print("not present in other bam 0 (0.00%)")
+        print("filtered by quality 0 (0.00%)")
+        print("paralogous 0 (0.00%)")
+        print("repeat 0 (0.00%)")
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
