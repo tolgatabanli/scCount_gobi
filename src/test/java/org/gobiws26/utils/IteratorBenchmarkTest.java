@@ -40,7 +40,7 @@ public class IteratorBenchmarkTest {
 
             // Benchmarking for KmerIteratorLong
             long startLong = System.nanoTime();
-            KmerIteratorLong kiLong = new KmerIteratorLong(debugSeq, Config.K);
+            KmerIteratorLong kiLong = new KmerIteratorLong(debugSeq, null, Config.K);
             int i = 0;
             while (kiLong.hasNext()) {
                 i++;

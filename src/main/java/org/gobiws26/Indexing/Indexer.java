@@ -1,23 +1,19 @@
 package org.gobiws26.Indexing;
 
 import htsjdk.samtools.reference.ReferenceSequenceFile;
-import it.unimi.dsi.fastutil.ints.Int2ObjectArrayMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
-import it.unimi.dsi.fastutil.ints.IntArrayList;
-import it.unimi.dsi.fastutil.ints.IntArrays;
 import it.unimi.dsi.fastutil.shorts.*;
 import org.gobiws26.genomicstruct.Transcript;
 import org.gobiws26.utils.Minimizers;
 import org.gobiws26.utils.TranscriptomeFetcher;
-
-import java.io.BufferedWriter;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Takes an output file and transcriptome to write an index file that maps the following information:
- *  1) transcript_id's, their gene_id's and a unique ID (int)
- *  2) map of minimizers to transcript (the above unique ID)
+ *  1) gtf_tx_id -> int
+ *  2) gtf_gene_id -> int
+ *  3) tx -> gene
+ *  4) tx (int) to an ordered list of minimizers (ShortArrayList)
  */
 public class Indexer {
     // inputs
@@ -25,80 +21,88 @@ public class Indexer {
     private HashMap<String, Transcript> transcripts;
 
     // outputs
-    private HashMap<String, Integer> transcriptToIndex = new HashMap<>();
+    private HashMap<String, Integer> transcriptToIndex; // our internal IDs
+    private String[] txIdArray;
+    private String[] geneIdArray;
+    private int[] txToGeneArray;
+    private Int2ObjectOpenHashMap<ShortArrayList> transcriptToMinimizerPath;
 
-    // Map minimizer (short) -> transcripts (int array)
-    // TODO: use synchronized version or the concurrent wrapper for multi-thread
-    private ConcurrentHashMap<Short, IntArrayList> minimizer2Transcripts;
 
-
-    public Indexer(HashMap<String, Transcript> transcripts, ArrayList<String> transcriptIDArray, ReferenceSequenceFile refSeqFile) {
+    public Indexer(HashMap<String, Transcript> transcripts, ReferenceSequenceFile refSeqFile) {
         this.transcripts = transcripts;
         this.refSeqFile = refSeqFile;
-
     }
 
-    // TODO: REIHENFOLGE IST AUCH WICHTIG VON DEN MINIMIZERN!!
+
     public void runIndex() {
-        minimizer2Transcripts = new ConcurrentHashMap<>();
+        int expectedSize = transcripts.size();
 
-        int txCounter = 0;
+        // minimize rehashing
+        this.transcriptToMinimizerPath = new Int2ObjectOpenHashMap<>(expectedSize);
+        this.transcriptToIndex = new HashMap<>(expectedSize);
+
+        HashMap<String, Integer> geneToIndex = new HashMap<>();
+        List<String> validTxIds = new ArrayList<>();
+        List<Integer> txToGeneList = new ArrayList<>();
+
         TranscriptomeFetcher tf = new TranscriptomeFetcher(refSeqFile);
-        for (Map.Entry<String, Transcript> txEntry : transcripts.entrySet()) {
-            Transcript tx = txEntry.getValue();
-            String txId = txEntry.getKey();
-            transcriptToIndex.put(txId, txCounter);
-
-            byte[] seq = tf.fetchTranscriptSequenceOf(tx);
-            ShortArrayList minimSet = Minimizers.of(seq);
-            for (short minimizer : minimSet) {
-                IntArrayList txList = minimizer2Transcripts.computeIfAbsent(minimizer, k -> new IntArrayList());
-                txList.add(txCounter);
-            }
-
-            txCounter++;
-        }
-    }
-
-    ConcurrentHashMap<Short, List<MinimizerPair>> minimizer2Occurrences;
-    Int2ObjectOpenHashMap<ShortArrayList> transcriptToMinimizerPath;
-    public void runIndex2() {
-        minimizer2Occurrences = new ConcurrentHashMap<>();
-        transcriptToMinimizerPath = new Int2ObjectOpenHashMap<>();
-
-        int txCounter = 0;
-        TranscriptomeFetcher tf = new TranscriptomeFetcher(refSeqFile);
+        int internalTxId = 0;
+        int internalGeneId = 0;
 
         for (Map.Entry<String, Transcript> txEntry : transcripts.entrySet()) {
-            Transcript tx = txEntry.getValue();
             String txId = txEntry.getKey();
-            transcriptToIndex.put(txId, txCounter);
+            Transcript tx = txEntry.getValue();
 
-            // 1) Find minimizers in order
-            byte[] seq = tf.fetchTranscriptSequenceOf(tx);
-            ShortArrayList minimizerPath = Minimizers.of(seq);
-
-            transcriptToMinimizerPath.put(txCounter, minimizerPath);
-
-            // map minimizer -> (txID, txPosition)
-            for (int pos = 0; pos < minimizerPath.size(); pos++) {
-                short minimizer = minimizerPath.getShort(pos);
-                MinimizerPair occurrence = new MinimizerPair(txCounter, pos);
-
-                minimizer2Occurrences.computeIfAbsent(minimizer, k -> Collections.synchronizedList(new ArrayList<>()))
-                        .add(occurrence);
+            // 1. Validate the sequence FIRST
+            byte[] seq = tf.fetchTranscriptSequenceOfUTRPlus(tx, 500); // TODO: Magic number
+            ShortArrayList minimizerPath;
+            try {
+                minimizerPath = Minimizers.of(seq, null);
+            } catch (IllegalArgumentException e) {
+                // Log and skip entirely
+                continue;
             }
 
-            txCounter++;
+            this.transcriptToIndex.put(txId, internalTxId);
+            this.transcriptToMinimizerPath.put(internalTxId, minimizerPath);
+            validTxIds.add(txId);
+
+            // gene -> int
+            String geneId = tx.getGeneId();
+            int finalGeneCounter = internalGeneId;
+            int geneIdx = geneToIndex.computeIfAbsent(geneId, k -> finalGeneCounter);
+            if (geneIdx == internalGeneId) internalGeneId++;
+
+            txToGeneList.add(geneIdx);
+
+            internalTxId++;
         }
+
+        this.txIdArray = validTxIds.toArray(new String[0]);
+        this.txToGeneArray = txToGeneList.stream().mapToInt(i -> i).toArray();
+        this.geneIdArray = new String[geneToIndex.size()];
+        geneToIndex.forEach((id, idx) -> geneIdArray[idx] = id);
     }
 
+    public HashMap<String, Integer> getTranscriptToIndex() {
+        if  (transcriptToIndex == null) throw new IllegalStateException("Indexer has not been run!");
+        return transcriptToIndex;
+    }
 
-    // TODO: add thread
-    // TODO: can give tail length as second arg
+    public Int2ObjectOpenHashMap<ShortArrayList> getTranscriptToMinimizerPath() {
+        if (transcriptToMinimizerPath == null) throw new IllegalStateException("Indexer has not been run!");
+        return transcriptToMinimizerPath;
+    }
 
-    public void writeToFile(BufferedWriter bw) {
-        if (transcriptToIndex == null) throw new IllegalStateException("Indexer has not been run!");
+    public String[] getTxIdArray() {
+        return txIdArray;
+    }
 
+    public String[] getGeneIdArray () {
+        return geneIdArray;
+    }
+
+    public int[] getTxToGeneArray() {
+        return txToGeneArray;
     }
 }

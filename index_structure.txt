@@ -1,0 +1,45 @@
+[ HEADER ]
+4 bytes (int)   : PROGRAM_IDENTIFIER
+4 bytes (int)   : INDEX_VERSION
+4 bytes (int)   : K (K-mer length)
+
+[ GENE TABLE ]
+4 bytes (int)   : geneIdArray.length (Number of genes)
+  [ For each Gene ]
+  2 bytes (short) : Length of gene name string (N)
+  N bytes         : UTF-8 encoded string bytes
+
+[ TRANSCRIPT TABLE ]
+4 bytes (int)   : txIdArray.length (Number of transcripts)
+  [ For each Transcript ]
+  2 bytes (short) : Length of transcript name string (M)
+  M bytes         : UTF-8 encoded string bytes
+  4 bytes (int)   : geneId index (Reference to Gene Table)
+
+[ PATH DATA (MINIMIZERS) ]
+4 bytes (int)   : txIdArray.length (Repeat of transcript count)
+  [ For each Transcript ]
+  4 bytes (int)   : path.size (Number of minimizers in this path)
+    [ For each Minimizer in Path ]
+    2 bytes (short) : Minimizer value (ShortArrayList entry)
+
+
+
+
+
+[ HEADER ]
+PROGRAM_IDENTIFIER
+INDEX_VERSION
+K (K-mer length)
+
+[ GENE TABLE ]
+[ For each Gene ]
+Index \t Gene name (index corresponds to the line number in the block, e.g. first gene has index 0)
+
+[ TRANSCRIPT TABLE ]
+[ For each Transcript ]
+Index \t Transcript name \t geneId (as the index above)
+
+[ PATH DATA (MINIMIZERS) ]
+[ For each Transcript ]
+Transcrip_id \t transcript_index \t list of minimizers (in string)

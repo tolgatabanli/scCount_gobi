@@ -55,6 +55,7 @@
 - looking through the mapping of space ranger (hella weird)
 - looking through literature about proof of concept 
 - found that the coverage plot is not counting uniquely for reads but for each transcript 
+    - Report the ambiguities in a summary file
 
 ## 8th day 
 - fixed coverage plot for the with merged bedfiles 
@@ -69,4 +70,16 @@
   - spaceranger and star counts are more simliar with 70% overlap threshold 
   - the higher counts of spaceranger are eliminated by 70% threshold since the it mapps less strict to exon boundaries 
 ## 12th day 
-- 
+- started read tracker program 
+
+## 14th day
+- program
+  - got first count results!
+  - 90% mapping rate (4635725 ambig, 47713064 total)
+  - 0.95 correlation against STAR, but data points are not scatter well: the developed tool is biased towards capturing more counts (possibly an artifact of greedy rescue strategy)
+  - processing 47M reads took ~ 20 minutes! -> gotta
+
+## 15th day
+- program
+  - noticed that the genes with counts of ~ 4000x ours, where ours had reported < 100, are those with long UTRs 
+  - and those that had 20x - 30x counts where our counts were > 100 have mapped reads with conserved mismatches, especially where A mutated -> changes minimizers

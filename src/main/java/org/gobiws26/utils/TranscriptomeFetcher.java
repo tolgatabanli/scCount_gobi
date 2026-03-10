@@ -33,7 +33,7 @@ public class TranscriptomeFetcher {
 
     public byte[] fetchTranscriptSequenceOf(Transcript t, int tailLength) {
         byte[] bases = fetchTranscriptSequenceOf(t);
-        return Arrays.copyOfRange(bases, bases.length - tailLength, bases.length);
+        return Arrays.copyOfRange(bases, Math.max(0, bases.length - tailLength), bases.length);
     }
 
     /**
@@ -44,7 +44,6 @@ public class TranscriptomeFetcher {
      */
     public byte[] fetchTranscriptSequenceOfUTRPlus(Transcript t, int plus) {
         int tailLength = t.getThreePrimeUTRLength() + plus;
-        System.out.println(tailLength);
         if (tailLength > t.getTranscriptomicLength()) tailLength = t.getTranscriptomicLength();
         return fetchTranscriptSequenceOf(t, tailLength);
     }
