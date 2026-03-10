@@ -42,6 +42,12 @@ public class IndexGraphTraversal {
         return numReadsFoundWithAlignment;
     }
 
+    private int numReadsEmptyCandidates = 0;
+
+    public int getNumReadsEmptyCandidates() {
+        return numReadsEmptyCandidates;
+    }
+
     public void process(FastqRecord read) {
         ShortArrayList minims = Minimizers.of(read.getReadBases(), read.getBaseQualities());
         if (minims.isEmpty()) return;
@@ -88,7 +94,7 @@ public class IndexGraphTraversal {
                     return;
                 }
             }
-        }
+        } else numReadsEmptyCandidates++;
 
         // 2) quasi-alignment
         int txCount = tx2geneMapping.size();
