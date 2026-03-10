@@ -1,0 +1,280 @@
+
+
+import pysam
+import argparse
+import heapq
+import pyranges as pr
+from bx.intervals.intersection import IntervalTree,Interval
+import pandas as pd
+
+interval_trees = {}
+padding = 500
+seen_in_a = set()
+seen_in_b = set()
+not_present_in_a = set()
+not_present_in_b = set()
+paralogous = set()
+repeat = set()
+gtf_annotation = pr.PyRanges()
+repeat_annotation = pr.PyRanges()
+class Locus:
+    chromosome: str
+    start: int
+    end: int
+    interval: Interval
+    reads_in_a: set[str]
+    reads_in_b: set[str]
+    associated_genes: set[str]
+    associated_transcripts: set[str]
+    read_count : int
+
+    def __init__(self, contig, start, end):
+        self.chromosome = contig
+        self.start = start
+        self.end = end
+        self.interval = Interval(chrom = contig, start=start, end=end)
+        global gtf_annotation
+        genes = query_annotation(gtf_annotation, contig, start, end, "gene_id")
+        transcripts = query_annotation(gtf_annotation, contig, start, end, "transcript_id")
+        self.associated_genes = genes
+        self.associated_transcripts = transcripts
+        self.reads_in_a = set()
+        self.reads_in_b = set()
+
+    def add_read(self, read:pysam.AlignedSegment, source_side):
+        if source_side == "a":
+            reads = self.reads_in_a
+        else:
+            reads = self.reads_in_b
+        if read.query_name in reads:
+            return False
+        reads.add(read.query_name)
+        self.start = min(self.start, read.reference_start)
+        self.end = max(self.end, read.reference_end)
+        return True
+
+    #TODO: make find/has_association method
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Read tracker")
+    parser.add_argument("-a", "--bamA", help = "BAM file A", required = True)
+    parser.add_argument("-b", "--bamB", help = "BAM file B", required = True)
+    parser.add_argument("-s", "--start_range", help = "Start range for tracking", required = True)
+    parser.add_argument("-g", "--gtf", help="Path to GTF annotation file", required=True)
+    parser.add_argument("-r", "--repeats", help="Path to RepeatMasker .out file", required=True)
+    return parser.parse_args()
+
+def load_repeats(repeats_file):
+    global repeat_annotation
+    df = pd.read_csv(
+        repeats_file,
+        sep=r"\s+",
+        skiprows=3,
+        header=None
+    ).rename(columns={
+        4: "Chromosome",
+        5: "Start",
+        6: "End",
+        9: "repeat_name",
+        10: "repeat_class"
+    })[["Chromosome","Start","End","repeat_name","repeat_class"]]
+    df["Start"] -= 1
+    df["Feature"] = "repeat"
+    df["Strand"] = "."
+    repeat_annotation = pr.PyRanges(df)
+
+#TODO to be implemented
+def is_paralogs(source_locus, target_locus):
+    #check if the two loci are paralogs based on their associated genes and transcripts
+    return False
+
+
+def is_repeat(source_locus, target_locus):
+    global repeat_annotation
+    source_hits = query_annotation(repeat_annotation, source_locus.chromosome, source_locus.start, source_locus.end, "repeat")
+    target_hits = query_annotation(repeat_annotation, target_locus.chromosome, target_locus.start, target_locus.end, "repeat")
+    return bool(source_hits & target_hits )
+
+#return only locis where reads are mapped in on side but not the other and not explained
+def get_mapping_diff(locus:Locus, bam_a, bam_b, indices):
+    # maybe add quality filter ?
+    # consider strand specificity ?
+    bam_a_reads = bam_a.fetch(locus.chromosome, locus.start, locus.end)
+    bam_b_reads = bam_b.fetch(locus.chromosome, locus.start, locus.end)
+    bam_a_ids = set()
+    bam_b_ids = set()
+    for read_a in  bam_a_reads:
+        if quality_filter(read_a):
+            locus.add_read(read_a, "a")
+            bam_a_ids.add(read_a.query_name)
+    for read_b in bam_b_reads:
+        if quality_filter(read_b):
+            locus.add_read(read_b, "b")
+            bam_b_ids.add(read_b.query_name)
+    #reads only in a or b that maps to the current locus look in the other for them
+    only_in_a = bam_a_ids - bam_b_ids
+    only_in_b = bam_b_ids - bam_a_ids
+    #locus where reads are mapped to in a that appeared 'here' b and vice versa
+    target_loci_a = get_loci(only_in_b, "a", indices, locus)
+    target_loci_b = get_loci(only_in_a, "b", indices, locus)
+    return target_loci_a, target_loci_b
+
+# given a set of read ids, get the loci they map to in the other bam file and return those loci
+def get_loci(read_ids, source_side, indices, source_locus):
+    loci = set()
+    seen_in_other = seen_in_b if source_side == "a" else seen_in_a
+    seen_in_this = seen_in_a if source_side == "a" else seen_in_b
+    for read_id in read_ids:
+        if read_id in seen_in_other:
+            continue
+        index = indices[source_side]
+        try:
+            read_iter = index.find(read_id)
+        except KeyError:
+            if source_side == "a":
+                not_present_in_b.add(read_id)
+            else:
+                not_present_in_a.add(read_id)
+            continue
+        for read in read_iter:
+            seen_in_this.add(read_id)
+            locus = get_locus(read, source_side, indices)
+            loci.add(locus)
+    for locus in loci:
+        if is_paralogs(source_locus, locus):
+            paralogous.add(locus.reads_in_a if source_side == "a" else locus.reads_in_b)
+        if is_repeat(source_locus, locus):
+            repeat.add(locus.reads_in_a if source_side == "a" else locus.reads_in_b)
+        loci.remove(locus)
+
+    return loci
+
+#given read, query the interval trees to find the locus it maps to, if any. If it does not map to any existing locus, create a new one and add it to the tree
+def get_locus(read, source_side, indices):
+    contig = read.reference_name
+    tree = interval_trees.get(contig, None)
+    if tree is None:
+        tree = IntervalTree()
+        interval_trees[contig] = tree
+    candidates_interval = tree.find(read.reference_start - padding, read.reference_end + padding)
+    if candidates_interval:
+        #don't know if thats necessary
+        best_interval = max(
+            candidates_interval,
+            key=lambda interval: min(interval.end, read.reference_end) - max(interval.start, read.reference_start)
+        )
+        locus = best_interval.value
+    else:
+        locus = Locus(contig, read.reference_start, read.reference_end)
+    locus.add_read(read, source_side)
+    add_locus_to_tree(contig, locus)
+    return locus
+
+
+
+def quality_filter(read):
+    #make this as argument to be specified later
+    if read.mapping_quality < 255:
+        return False
+    if read.is_secondary or read.is_supplementary:
+        return False
+    if read.cigartuples:
+        ##check if read contains a junction that is to big
+        for op, length in read.cigartuples:
+            if op == 3 and length > 1.5e4:
+                return False
+    return True
+def query_annotation(annotation, contig, start, end, feature):
+    query = pr.from_dict({
+        "Chromosome": [contig],
+        "Start": [start],
+        "End": [end]
+    })
+    hits = annotation.overlap(query).df
+    return set(hits[feature].dropna())
+
+def add_locus_to_tree(contig, locus:Locus):
+    if contig not in interval_trees:
+        interval_trees[contig] = IntervalTree()
+    interval_trees[contig].insert(locus.start, locus.end, locus)
+
+
+def load_parameters(args):
+    """Load BAM files, annotations, and build indices"""
+    bam_a = pysam.AlignmentFile(args.bamA, "rb", require_index=True)
+    bam_b = pysam.AlignmentFile(args.bamB, "rb", require_index=True)
+
+    print("loading gtf annotations...")
+    global gtf_annotation
+    gtf = pr.read_gtf(args.gtf)
+    gtf_annotation = gtf[gtf.Feature.isin(["gene", "transcript", "exons"])]
+
+    print("loading repeats....")
+    load_repeats(args.repeats)
+
+    print("building indices...")
+    name_index_a = pysam.IndexedReads(bam_a)
+    name_index_a.build()
+    print("index for bamA built")
+    name_index_b = pysam.IndexedReads(bam_b)
+    name_index_b.build()
+    print("index for bamB built")
+
+    indices = {
+        "a": name_index_a,
+        "b": name_index_b
+    }
+    return bam_a, bam_b, indices
+
+def push_to_queue(loci_in_a, loci_in_b, priority_queue):
+    queue_a = []
+    #pushes loci in two heaps based on number of reads in the respective side
+    #and merges into one heap later
+    for locus in loci_in_a:
+        heapq.heappush(queue_a, (-len(locus.reads_in_a), locus))
+    queue_b = []
+    for locus in loci_in_b:
+        heapq.heappush(queue_b, (-len(locus.reads_in_b), locus))
+    while queue_a:
+        heapq.heappush(priority_queue, heapq.heappop(queue_a))
+    while queue_b:
+        heapq.heappush(priority_queue, heapq.heappop(queue_b))
+def main():
+    args = parse_args()
+    bam_a, bam_b, indices= load_parameters(args)
+
+    contig, interval = args.start_range.split(":")
+    contig = contig.replace("chr", "")
+    start, end = map(int, interval.replace(",","").split("-"))
+    start = start-1
+    seed = Locus(contig, start, end)
+    add_locus_to_tree(contig, seed)
+    # gets differences in mapping and stores associated with the locus for each side
+    loci_in_a, loci_in_b = get_mapping_diff(seed, bam_a, bam_b, indices )
+    priority_queue = []
+    push_to_queue(loci_in_a, loci_in_b, priority_queue)
+    visited = set()
+    visited.add(seed)
+    while priority_queue:
+        neg_count, locus = heapq.heappop(priority_queue)
+        if locus in visited:
+            continue
+        visited.add(locus)
+        print('visiting locus:', locus.chromosome, locus.start, locus.end, f'{locus.associated_genes}', f'{locus.associated_transcripts}')
+        loci_in_a, loci_in_b = get_mapping_diff(locus, bam_a, bam_b, indices)
+        push_to_queue(loci_in_a, loci_in_b, priority_queue)
+    seen_reads = seen_in_a.union(seen_in_b)
+
+    print("seen_reads:", len(seen_reads))
+    print(f"not present in a {len(not_present_in_a)} ({len(not_present_in_a)/len(seen_reads)*100:.2f}%)")
+    print(f"not present in b {len(not_present_in_b)} ({len(not_present_in_b)/len(seen_reads)*100:.2f}%)")
+    print(f"paralogous {len(paralogous)} ({len(paralogous)/len(seen_reads)*100:.2f}%)")
+    print(f"repeat {len(repeat)} ({len(repeat)/len(seen_reads)*100:.2f}%)")
+if __name__ == "__main__":
+    main()
+
+
+
+
+
+
