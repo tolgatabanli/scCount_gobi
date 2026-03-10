@@ -1,5 +1,6 @@
 
 
+import sys
 import pysam
 import argparse
 import heapq
@@ -68,7 +69,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Read tracker")
     parser.add_argument("-a", "--bamA", help="BAM file A", required=True)
     parser.add_argument("-b", "--bamB", help="BAM file B", required=True)
-    parser.add_argument("-s", "--start_range", help="Start range for tracking", required=True)
+    parser.add_argument("-s", "--start_range", help="Comma-separated list of gene IDs (e.g. ENSG00000001) or transcript IDs (e.g. ENST00000001) to use as traversal seed loci", required=True)
     parser.add_argument("-g", "--gtf", help="Path to GTF annotation file", required=True)
     parser.add_argument("-r", "--repeats", help="Path to RepeatMasker .out file", required=True)
     parser.add_argument("--padding", help="Padding around loci for considering reads as mapped to the locus", type=int, default=500)
@@ -327,6 +328,24 @@ def push_to_queue(loci_in_a, loci_in_b, priority_queue):
         heapq.heappush(priority_queue, heapq.heappop(queue_b))
 
 
+def resolve_ids_to_loci(id_list):
+    global gtf_annotation
+    intervals = []
+    missing_ids = set()
+    for id in id_list:
+        hits = gtf_annotation[gtf_annotation.transcript_id == id]
+        hits = hits[hits.Feature == "transcript"]
+        if len(hits) == 0:
+            hits = gtf_annotation[gtf_annotation.gene_id == id]
+            hits = hits[hits.Feature == "gene"]
+        if len(hits) == 0:
+            missing_ids.add(id)
+            continue
+        row = hits.df.iloc[0]
+        intervals.append((row["Chromosome"], int(row["Start"]), int(row["End"])))
+    return intervals, missing_ids
+
+
 def main():
     args = parse_args()
     bam_a, bam_b, indices= load_parameters(args)
@@ -340,18 +359,19 @@ def main():
     repeat = set()
     filtered_by_quality = set()
     read_status = {}
-    contig, interval = args.start_range.split(":")
-    contig = contig.replace("chr", "")
-    start, end = map(int, interval.replace(",","").split("-"))
-    start = start-1
-    seed = Locus(contig, start, end)
-    add_locus_to_tree(contig, seed)
-    # gets differences in mapping and stores associated with the locus for each side
-    loci_in_a, loci_in_b = get_mapping_diff(seed, bam_a, bam_b, indices )
+    ids = [s.strip() for s in args.start_range.split(",")]
+    intervals, missing = resolve_ids_to_loci(ids)
+    if len(missing) == len(ids):
+        print(f"Error: none of the {len(ids)} provided IDs were found in the annotation: {missing}", file=sys.stderr)
+        sys.exit(1)
+    if missing:
+        print(f"Warning: {len(missing)}/{len(ids)} IDs not found in annotation: {missing}")
+    seeds = [Locus(chrom, start, end) for chrom, start, end in intervals]
     priority_queue = []
-    push_to_queue(loci_in_a, loci_in_b, priority_queue)
+    for seed in seeds:
+        add_locus_to_tree(seed.chromosome, seed)
+        heapq.heappush(priority_queue, make_priority_entry(seed, "a"))
     visited = set()
-    visited.add(seed)
     while priority_queue:
         neg_count, _, locus = heapq.heappop(priority_queue)
         if locus in visited:
