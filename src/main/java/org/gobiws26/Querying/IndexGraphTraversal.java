@@ -90,30 +90,7 @@ public class IndexGraphTraversal {
             }
         }
 
-        // 2) quasi-alignment (optimized): reuse candidate transcripts if available,
-        //    traverse the graph once and score only transcripts that remain candidates.
-        BitSet validated = null;
-        // If we produced a `candidates` BitSet earlier and it had members, verifyOrderedPath
-        // may already have produced a validated set in the heuristic block. Re-run verify
-        // only if candidates exists and is non-empty.
-        if (candidates != null && !candidates.isEmpty()) {
-            validated = verifyOrderedPath(minims, exploredCount, candidates);
-            if (validated != null && !validated.isEmpty()) {
-                int geneId = getGeneIfAllIsoforms(validated);
-                if (validated.size() == 1) {
-                    int txId = validated.nextSetBit(0);
-                    txCounts.merge(txId, 1, Integer::sum);
-                    geneCounts.merge(tx2geneMapping.get(txId), 1, Integer::sum);
-                    numReadsFoundHeuristically++;
-                    return;
-                } else if (geneId != -1) {
-                    geneCounts.merge(geneId, 1, Integer::sum);
-                    numReadsFoundHeuristically++;
-                    return;
-                }
-            }
-        }
-
+        // 2) quasi-alignment
         int txCount = tx2geneMapping.size();
         int[] scores   = new int[txCount];
         int[] expected = new int[txCount];
@@ -121,10 +98,6 @@ public class IndexGraphTraversal {
 
         int firstScore = 0, secondScore = 0;
         int halfMinims = (minims.size() - 1) / 2;
-
-        // Use a BitSet to restrict scoring to candidates when available. If `validated` is null
-        // or empty, we score all transcripts.
-        BitSet txsToScore = (validated != null && !validated.isEmpty()) ? (BitSet) validated.clone() : null;
 
         for (int i = 0; i + 1 < minims.size(); i++) {
             short curMinim  = minims.getShort(i);
@@ -136,9 +109,7 @@ public class IndexGraphTraversal {
             IndexGraph.Edge edge = curNode.getEdgeTo(nextMinim);
             if (edge == null) continue;
 
-            // iterate over transcripts that have this edge; skip those not in txsToScore when present
             for (int txId = edge.getTxIdIndex().nextSetBit(0); txId >= 0; txId = edge.getTxIdIndex().nextSetBit(txId + 1)) {
-                if (txsToScore != null && !txsToScore.get(txId)) continue;
                 IntArrayList positions = edge.getPositionsForTx(txId);
                 for (int p = 0; p < positions.size(); p++) {
                     int pos = positions.getInt(p);
@@ -156,39 +127,36 @@ public class IndexGraphTraversal {
             if (i >= halfMinims && firstScore >= secondScore * 2) break;
         }
 
-        // Find max raw and quit fast if nothing matched
+        // Normalize scores by transcript minimizer count, keep as float
         int maxRaw = 0;
         for (int s : scores) if (s > maxRaw) maxRaw = s;
         if (maxRaw == 0) { ambigReads++; return; }
 
-        // Normalize scores by transcript minimizer count, keep as float
         float[] normScores = new float[txCount];
         float maxNorm = 0f;
         for (int txId = 0; txId < txCount; txId++) {
             if (scores[txId] == 0) continue;
-            if (txsToScore != null && !txsToScore.get(txId)) continue;
             int txLen = g.getMinimCountOfTranscript(txId);
             float norm = txLen > 0 ? (float) scores[txId] / txLen : 0f;
             normScores[txId] = norm;
             if (norm > maxNorm) maxNorm = norm;
         }
 
-        if (maxNorm == 0f) { ambigReads++; return; }
-
         // Pick best-scoring transcript(s) within a small tolerance for float comparison
-        BitSet bestTxs = new BitSet();
+        BitSet bestTxs = new BitSet(txCount);
         float threshold = maxNorm * 0.999f;
         for (int txId = 0; txId < txCount; txId++) {
             if (normScores[txId] >= threshold) bestTxs.set(txId);
         }
 
         int geneId = getGeneIfAllIsoforms(bestTxs);
-        if (bestTxs.cardinality() == 1) {
+        int bestCount = bestTxs.cardinality();
+        if (bestCount == 1) {
             int txId = bestTxs.nextSetBit(0);
-            txCounts.merge(txId, 1, Integer::sum);
-            geneCounts.merge(tx2geneMapping.get(txId), 1, Integer::sum);
+            txCounts.addTo(txId, 1);
+            geneCounts.addTo(geneId, 1);
         } else if (geneId != -1) {
-            geneCounts.merge(geneId, 1, Integer::sum);
+            geneCounts.addTo(geneId, 1);
         } else {
             ambigReads++; return;
         }
