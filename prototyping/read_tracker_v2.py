@@ -286,7 +286,6 @@ def load_parameters(args):
     global gtf_annotation
     gtf = pr.read_gtf(args.gtf)
     gtf_annotation = gtf[gtf.Feature.isin(["gene", "transcript", "exon"])]
-
     print("loading repeats....")
     load_repeats(args.repeats)
 
@@ -332,16 +331,20 @@ def resolve_ids_to_loci(id_list):
     global gtf_annotation
     intervals = []
     missing_ids = set()
+    df = gtf_annotation.df
     for id in id_list:
-        hits = gtf_annotation[gtf_annotation.transcript_id == id]
-        hits = hits[hits.Feature == "transcript"]
-        if len(hits) == 0:
-            hits = gtf_annotation[gtf_annotation.gene_id == id]
-            hits = hits[hits.Feature == "gene"]
-        if len(hits) == 0:
+        row = None
+        if "transcript_id" in df.columns and "Feature" in df.columns:
+            match = df[(df["transcript_id"] == id) & (df["Feature"] == "transcript")]
+            if not match.empty:
+                row = match.iloc[0]
+        if row is None and "gene_id" in df.columns and "Feature" in df.columns:
+            match = df[(df["gene_id"] == id) & (df["Feature"] == "gene")]
+            if not match.empty:
+                row = match.iloc[0]
+        if row is None:
             missing_ids.add(id)
             continue
-        row = hits.df.iloc[0]
         intervals.append((row["Chromosome"], int(row["Start"]), int(row["End"])))
     return intervals, missing_ids
 
