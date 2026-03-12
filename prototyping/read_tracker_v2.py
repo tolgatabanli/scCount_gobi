@@ -12,6 +12,7 @@ import pandas as pd
 
 interval_trees = {}
 padding = int
+mapq = int
 tracked_reads = set()
 seen_in_a = set()
 seen_in_b = set()
@@ -25,6 +26,7 @@ gtf_annotation = pr.PyRanges()
 repeat_annotation = pr.PyRanges()
 priority_counter = itertools.count()
 skip_intergenic = False
+paralog_table: dict[str, set[str]] = {}
 
 class Locus:
     chromosome: str
@@ -73,7 +75,9 @@ def parse_args():
     parser.add_argument("-g", "--gtf", help="Path to GTF annotation file", required=True)
     parser.add_argument("-r", "--repeats", help="Path to RepeatMasker .out file", required=True)
     parser.add_argument("--padding", help="Padding around loci for considering reads as mapped to the locus", type=int, default=500)
+    parser.add_argument("--quality_filter", help="Minimum mapping quality for considering a read as mapped (default: 255, i.e. only uniquely mapped reads)", type=int, default=255)
     parser.add_argument("--skip_inter_genic", help="Whether to skip loci that do not overlap any gene annotation", action="store_true")
+    parser.add_argument("--paralog_table", help="Path to paralog lookup table TSV (gene_id<TAB>paralog1,paralog2,...) produced by extract_paralogs.sh", required=True)
     return parser.parse_args()
 
 
@@ -98,9 +102,22 @@ def load_repeats(repeats_file):
     repeat_annotation = pr.PyRanges(df)
 
 
-#TODO to be implemente
+def load_paralog_table(filepath):
+    global paralog_table
+    paralog_table = {}
+    with open(filepath) as fh:
+        for line in fh:
+            parts = line.rstrip("\n").split("\t")
+            if len(parts) < 2:
+                continue
+            paralog_table[parts[0]] = set(parts[1].split(","))
+    print(f"Loaded paralog table: {len(paralog_table)} genes")
+
+
 def is_paralogs(source_locus, target_locus):
-    #check if the two loci are paralogs based on their associated genes and transcripts
+    for gene in source_locus.associated_genes:
+        if paralog_table.get(gene, set()) & target_locus.associated_genes:
+            return True
     return False
 
 
@@ -243,11 +260,11 @@ def get_locus(read, source_side, indices):
 
 def quality_filter(read):
     #make this as argument to be specified later
-    if read.mapping_quality < 255:
+    if read.mapping_quality < mapq:
         return False
     if read.is_secondary or read.is_supplementary:
         return False
-    if read.is_unmapped or read.reference_start is None or read.reference_end is None:
+    if read.is_unmapped:
         return False
     if read.cigartuples:
         ##check if read contains a junction that is to big
@@ -303,9 +320,13 @@ def load_parameters(args):
     }
     global padding
     padding = args.padding
+    global mapq
+    mapq = args.quality_filter
     if args.skip_inter_genic:
         global skip_intergenic
         skip_intergenic = True
+    print("loading paralog table...")
+    load_paralog_table(args.paralog_table)
     return bam_a, bam_b, indices
 
 def make_priority_entry(locus, source_side):
