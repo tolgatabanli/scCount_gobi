@@ -63,6 +63,9 @@ public class ParallelGraphQuery {
 
         mergeBatchResults(workers);
         System.out.println("Total ambiguous reads: " + totalAmbigReads);
+        System.out.println("numReadsFoundHeuristically: " + numReadsFoundHeuristically);
+        System.out.println("numReadsFoundWithAlignment: " + numReadsFoundWithAlignment);
+        System.out.println("numReadsEmptyCandidates: " + numReadsEmptyCandidates);
     }
 
     /**
@@ -96,10 +99,14 @@ public class ParallelGraphQuery {
                     globalTxCounts.addTo(e.getIntKey(), e.getIntValue()));
             numReadsFoundHeuristically += worker.getNumReadsFoundHeuristically();
             numReadsFoundWithAlignment += worker.getNumReadsFoundWithAlignment();
+            numReadsEmptyCandidates += worker.getNumReadsEmptyCandidates();
+
             this.totalAmbigReads += worker.getAmbigReads();
         }
     }
+
     private int numReadsFoundHeuristically = 0;
     private int numReadsFoundWithAlignment = 0;
+    private int numReadsEmptyCandidates = 0;
 
 }
