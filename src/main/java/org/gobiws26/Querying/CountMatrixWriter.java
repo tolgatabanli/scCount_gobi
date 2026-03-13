@@ -14,9 +14,25 @@ public class CountMatrixWriter {
     private BufferedWriter bw;
     private IndexData idxData;
 
+    Int2ObjectOpenHashMap<String> transcriptInterpreter;
+    Int2ObjectOpenHashMap<String> geneInterpreter;
+    Int2IntOpenHashMap geneOfTranscript;
+
+    public CountMatrixWriter(File file, Int2ObjectOpenHashMap<String> transcriptInterpreter,
+                             Int2ObjectOpenHashMap<String> geneInterpreter, Int2IntOpenHashMap geneOfTranscript) throws IOException {
+        bw = new BufferedWriter(new FileWriter(file));
+
+        this.transcriptInterpreter = transcriptInterpreter;
+        this.geneInterpreter = geneInterpreter;
+        this.geneOfTranscript = geneOfTranscript;
+    }
+
     public CountMatrixWriter(File file, IndexData idxData) throws IOException {
         bw = new BufferedWriter(new FileWriter(file));
         this.idxData = idxData;
+        this.transcriptInterpreter = idxData.int2TxString;
+        this.geneInterpreter = idxData.int2GeneString;
+        this.geneOfTranscript = idxData.txInt2GeneInt;
     }
 
     public void write(Int2IntOpenHashMap geneInt2Counts, Int2IntOpenHashMap txInt2Counts) throws IOException {
