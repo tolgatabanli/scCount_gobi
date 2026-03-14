@@ -14,7 +14,6 @@ import htsjdk.samtools.fastq.FastqReader;
 import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
 import org.gobiws26.Indexing.*;
 import org.gobiws26.Querying.CountMatrixWriter;
-import org.gobiws26.Querying.ParallelChainQuery;
 import org.gobiws26.Querying.ParallelGraphQuery;
 import org.gobiws26.Readers.GTFReader;
 import org.gobiws26.genomicstruct.Transcript;
@@ -58,7 +57,7 @@ public class Main {
             IndexData idxData = BinaryIndexReader.read(indexFile);
             //IndexChainData idxData = BinaryIndexChainReader.read(indexFile);
 
-            ParallelGraphQuery pgq = new ParallelGraphQuery(idxData.graph, idxData.txInt2GeneInt, threads, 
+            ParallelGraphQuery pgq = new ParallelGraphQuery(idxData.graph(), idxData.txInt2GeneInt(), threads,
                                                              readOneFile != null); // Enable barcode mode if r1 provided
             //ParallelChainQuery pgq = new ParallelChainQuery(idxData, threads);
 
@@ -144,8 +143,8 @@ public class Main {
             // Write output
             if (readOneFile != null) {
                 // Barcode-aware mode: output as sparse matrix
-                CountMatrixWriter cmw = new CountMatrixWriter(countMatrixFile, idxData.getInt2TxString(), 
-                                                              idxData.getInt2GeneString(), idxData.getTxInt2GeneInt());
+                CountMatrixWriter cmw = new CountMatrixWriter(countMatrixFile, idxData.int2TxString(),
+                                                              idxData.int2GeneString(), idxData.txInt2GeneInt());
                 cmw.writeBarcodeSparseMatrix(pgq.getGeneCountsPerBarcode(), pgq.getTxCountsPerBarcode(), 
                                            pgq.getBarcodeMapper(), outputDir);
                 System.out.println("Wrote sparse matrix (Market Matrix format) to: " + outputDir);
@@ -153,8 +152,8 @@ public class Main {
                 // Legacy mode: output counts
                 Int2IntOpenHashMap geneInt2Counts = pgq.getGlobalGeneCounts();
                 Int2IntOpenHashMap txInt2Counts = pgq.getGlobalTxCounts();
-                CountMatrixWriter cmw = new CountMatrixWriter(countMatrixFile, idxData.getInt2TxString(), 
-                                                              idxData.getInt2GeneString(), idxData.getTxInt2GeneInt());
+                CountMatrixWriter cmw = new CountMatrixWriter(countMatrixFile, idxData.int2TxString(),
+                                                              idxData.int2GeneString(), idxData.txInt2GeneInt());
                 cmw.write(geneInt2Counts, txInt2Counts);
                 System.out.println("Wrote counts to: " + countMatrixFile);
             }
