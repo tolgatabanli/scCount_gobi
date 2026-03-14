@@ -7,6 +7,8 @@ import org.gobiws26.genomicstruct.Transcript;
 import org.gobiws26.utils.Minimizers;
 import org.gobiws26.utils.TranscriptomeFetcher;
 import java.util.*;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Takes an output file and transcriptome to write an index file that maps the following information:
@@ -37,49 +39,55 @@ public class Indexer {
     public void runIndex() {
         int expectedSize = transcripts.size();
 
-        // minimize rehashing
-        this.transcriptToMinimizerPath = new Int2ObjectOpenHashMap<>(expectedSize);
-        this.transcriptToIndex = new HashMap<>(expectedSize);
+        // temporary, thread-safe structures used during parallel build
+        ConcurrentHashMap<String, Integer> tmpTranscriptToIndex = new ConcurrentHashMap<>(expectedSize);
+        ConcurrentHashMap<Integer, ShortArrayList> tmpPaths = new ConcurrentHashMap<>(expectedSize);
+        ConcurrentHashMap<Integer, String> idToTxId = new ConcurrentHashMap<>(expectedSize);
+        ConcurrentHashMap<Integer, Integer> idToGene = new ConcurrentHashMap<>(expectedSize);
+        ConcurrentHashMap<String, Integer> geneToIndex = new ConcurrentHashMap<>();
 
-        HashMap<String, Integer> geneToIndex = new HashMap<>();
-        List<String> validTxIds = new ArrayList<>();
-        List<Integer> txToGeneList = new ArrayList<>();
+        AtomicInteger internalTxId = new AtomicInteger(0);
+        AtomicInteger internalGeneId = new AtomicInteger(0);
 
-        TranscriptomeFetcher tf = new TranscriptomeFetcher(refSeqFile);
-        int internalTxId = 0;
-        int internalGeneId = 0;
+        int nThreads = Runtime.getRuntime().availableProcessors();
+        ExecutorService pool = Executors.newFixedThreadPool(nThreads);
 
+        // Submit one task per transcript
         for (Map.Entry<String, Transcript> txEntry : transcripts.entrySet()) {
             String txId = txEntry.getKey();
             Transcript tx = txEntry.getValue();
 
-            // 1. Validate the sequence FIRST
-            byte[] seq = tf.fetchTranscriptSequenceOfUTRPlus(tx, 500); // TODO: Magic number
-            ShortArrayList minimizerPath;
-            try {
-                minimizerPath = Minimizers.of(seq, null);
-            } catch (IllegalArgumentException e) {
-                // Log and skip entirely
-                continue;
-            }
-
-            this.transcriptToIndex.put(txId, internalTxId);
-            this.transcriptToMinimizerPath.put(internalTxId, minimizerPath);
-            validTxIds.add(txId);
-
-            // gene -> int
-            String geneId = tx.getGeneId();
-            int finalGeneCounter = internalGeneId;
-            int geneIdx = geneToIndex.computeIfAbsent(geneId, k -> finalGeneCounter);
-            if (geneIdx == internalGeneId) internalGeneId++;
-
-            txToGeneList.add(geneIdx);
-
-            internalTxId++;
+            pool.submit(new Worker(txId, tx, refSeqFile, internalTxId, geneToIndex, internalGeneId, tmpTranscriptToIndex, tmpPaths, idToTxId, idToGene));
         }
 
-        this.txIdArray = validTxIds.toArray(new String[0]);
-        this.txToGeneArray = txToGeneList.stream().mapToInt(i -> i).toArray();
+        // wait for completion
+        pool.shutdown();
+        try {
+            boolean ok = pool.awaitTermination(1, TimeUnit.HOURS);
+            if (!ok) throw new IllegalStateException("Indexing did not complete in time");
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        }
+
+        // Build final structures in deterministic id order
+        int txCount = internalTxId.get();
+        this.txIdArray = new String[txCount];
+        this.txToGeneArray = new int[txCount];
+        this.transcriptToMinimizerPath = new Int2ObjectOpenHashMap<>(txCount);
+        this.transcriptToIndex = new HashMap<>(tmpTranscriptToIndex);
+
+        for (int id = 0; id < txCount; id++) {
+            String tid = idToTxId.get(id);
+            Integer g = idToGene.get(id);
+            ShortArrayList path = tmpPaths.get(id);
+
+            this.txIdArray[id] = tid;
+            this.txToGeneArray[id] = (g == null) ? -1 : g;
+            if (path != null) this.transcriptToMinimizerPath.put(id, path);
+        }
+
+        // Build geneId array from geneToIndex map
         this.geneIdArray = new String[geneToIndex.size()];
         geneToIndex.forEach((id, idx) -> geneIdArray[idx] = id);
     }
@@ -104,5 +112,74 @@ public class Indexer {
 
     public int[] getTxToGeneArray() {
         return txToGeneArray;
+    }
+
+    // Worker performs per-transcript work: fetch sequence, compute minimizers, and record results
+    private static class Worker implements Runnable {
+        private final String txId;
+        private final Transcript tx;
+        private final ReferenceSequenceFile refSeqFile;
+        private final AtomicInteger internalTxId;
+        private final ConcurrentHashMap<String, Integer> geneToIndex;
+        private final AtomicInteger internalGeneId;
+        private final ConcurrentHashMap<String, Integer> tmpTranscriptToIndex;
+        private final ConcurrentHashMap<Integer, ShortArrayList> tmpPaths;
+        private final ConcurrentHashMap<Integer, String> idToTxId;
+        private final ConcurrentHashMap<Integer, Integer> idToGene;
+
+        Worker(String txId,
+               Transcript tx,
+               ReferenceSequenceFile refSeqFile,
+               AtomicInteger internalTxId,
+               ConcurrentHashMap<String, Integer> geneToIndex,
+               AtomicInteger internalGeneId,
+               ConcurrentHashMap<String, Integer> tmpTranscriptToIndex,
+               ConcurrentHashMap<Integer, ShortArrayList> tmpPaths,
+               ConcurrentHashMap<Integer, String> idToTxId,
+               ConcurrentHashMap<Integer, Integer> idToGene) {
+            this.txId = txId;
+            this.tx = tx;
+            this.refSeqFile = refSeqFile;
+            this.internalTxId = internalTxId;
+            this.geneToIndex = geneToIndex;
+            this.internalGeneId = internalGeneId;
+            this.tmpTranscriptToIndex = tmpTranscriptToIndex;
+            this.tmpPaths = tmpPaths;
+            this.idToTxId = idToTxId;
+            this.idToGene = idToGene;
+        }
+
+        @Override
+        public void run() {
+            // Use a local fetcher but synchronize on the refSeqFile to be safe
+            TranscriptomeFetcher tf = new TranscriptomeFetcher(refSeqFile);
+            byte[] seq;
+            try {
+                synchronized (refSeqFile) {
+                    seq = tf.fetchTranscriptSequenceOfUTRPlus(tx, 500);
+                }
+            } catch (RuntimeException e) {
+                // Fetch failure: skip this transcript
+                return;
+            }
+
+            ShortArrayList minimizerPath;
+            try {
+                minimizerPath = Minimizers.of(seq, null);
+            } catch (IllegalArgumentException e) {
+                // invalid sequence, skip
+                return;
+            }
+
+            int id = internalTxId.getAndIncrement();
+
+            tmpTranscriptToIndex.put(txId, id);
+            idToTxId.put(id, txId);
+            tmpPaths.put(id, minimizerPath);
+
+            String geneId = tx.getGeneId();
+            int geneIdx = geneToIndex.computeIfAbsent(geneId, k -> internalGeneId.getAndIncrement());
+            idToGene.put(id, geneIdx);
+        }
     }
 }

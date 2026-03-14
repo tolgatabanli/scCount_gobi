@@ -19,4 +19,20 @@ public class IndexData {
         this.int2GeneString = int2GeneString;
         this.txInt2GeneInt = txInt2GeneInt;
     }
+
+    public IndexGraph getGraph() {
+        return graph;
+    }
+
+    public Int2ObjectOpenHashMap<String> getInt2TxString() {
+        return int2TxString;
+    }
+
+    public Int2ObjectOpenHashMap<String> getInt2GeneString() {
+        return int2GeneString;
+    }
+
+    public Int2IntOpenHashMap getTxInt2GeneInt() {
+        return txInt2GeneInt;
+    }
 }
