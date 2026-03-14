@@ -24,9 +24,21 @@ public class IndexGraphTraversal {
     public Int2IntOpenHashMap getTxCounts()   { return txCounts;   }
     public int getAmbigReads()                { return ambigReads; }
 
+    int txCount;
+    int[] scores; // should be reset
+    int[] expected; // should also be reset
+    private final BitSet candidatesBitSet = new BitSet();
+    private final BitSet validatedBitSet = new BitSet();
+    private final BitSet bestTxsBitSet = new BitSet();
+    private final float[] normScores;
     public IndexGraphTraversal(IndexGraph g, Int2IntMap tx2gene) {
         this.g = g;
         this.tx2geneMapping = tx2gene;
+
+        txCount = tx2geneMapping.size();
+        scores   = new int[txCount];
+        expected = new int[txCount];
+        normScores = new float[txCount];
     }
 
     // for benchmarking/logging
@@ -48,41 +60,43 @@ public class IndexGraphTraversal {
         return numReadsEmptyCandidates;
     }
 
+
     public void process(FastqRecord read) {
         ShortArrayList minims = Minimizers.of(read.getReadBases(), read.getBaseQualities());
         if (minims.isEmpty()) return;
 
         // 1) Heuristic/ideal case: intersect transcripts of all minimizers -> get transcripts -> see if single transcript of gene
-        BitSet candidates = null;
+        candidatesBitSet.clear();
         int exploredCount = 0;
+        boolean candidatesEmpty = false;
 
         for (int i = 0; i < minims.size(); i++) {
             IndexGraph.Node node = g.getNode(minims.getShort(i));
-            if (node == null) { candidates = new BitSet(); break; }
+            if (node == null) { candidatesBitSet.clear(); candidatesEmpty = true; break; }
 
             BitSet nodeTxs = node.getTranscriptsBitSet();
-            if (candidates == null) {
-                candidates = (BitSet) nodeTxs.clone();
+            if (exploredCount == 0) {
+                candidatesBitSet.or(nodeTxs);
             } else {
-                candidates.and(nodeTxs); // retainAll / intersection
+                candidatesBitSet.and(nodeTxs); // retainAll / intersection
             }
             exploredCount = i + 1;
 
-            if (candidates.isEmpty()) break;
+            if (candidatesBitSet.isEmpty()) { candidatesEmpty = true; break; }
 
             // Early stop: unique gene found
-            if (getGeneIfAllIsoforms(candidates) != -1) break;
+            if (getGeneIfAllIsoforms(candidatesBitSet) != -1) break;
         }
 
-        if (!candidates.isEmpty()) {
+        if (!candidatesEmpty && !candidatesBitSet.isEmpty()) {
             // Verify order-preserving path for explored minimizers on each candidate
-            BitSet validated = verifyOrderedPath(minims, exploredCount, candidates);
+            verifyOrderedPath(minims, exploredCount, candidatesBitSet, validatedBitSet);
 
-            if (!validated.isEmpty()) {
-                int geneId = getGeneIfAllIsoforms(validated);
-                if (validated.size() == 1) {
+            if (!validatedBitSet.isEmpty()) {
+                int geneId = getGeneIfAllIsoforms(validatedBitSet);
+                if (validatedBitSet.cardinality() == 1) {
                     // Unambiguous transcript
-                    int txId = validated.nextSetBit(0);
+                    int txId = validatedBitSet.nextSetBit(0);
                     txCounts.merge(txId, 1, Integer::sum);
                     geneCounts.merge(tx2geneMapping.get(txId), 1, Integer::sum);
                     numReadsFoundHeuristically++;
@@ -97,9 +111,7 @@ public class IndexGraphTraversal {
         } else numReadsEmptyCandidates++;
 
         // 2) quasi-alignment
-        int txCount = tx2geneMapping.size();
-        int[] scores   = new int[txCount];
-        int[] expected = new int[txCount];
+        Arrays.fill(scores, 0);
         Arrays.fill(expected, -1);
 
         int firstScore = 0, secondScore = 0;
@@ -138,7 +150,7 @@ public class IndexGraphTraversal {
         for (int s : scores) if (s > maxRaw) maxRaw = s;
         if (maxRaw == 0) { ambigReads++; return; }
 
-        float[] normScores = new float[txCount];
+        Arrays.fill(normScores, 0f);
         float maxNorm = 0f;
         for (int txId = 0; txId < txCount; txId++) {
             if (scores[txId] == 0) continue;
@@ -149,16 +161,16 @@ public class IndexGraphTraversal {
         }
 
         // Pick best-scoring transcript(s) within a small tolerance for float comparison
-        BitSet bestTxs = new BitSet(txCount);
+        bestTxsBitSet.clear();
         float threshold = maxNorm * 0.999f;
         for (int txId = 0; txId < txCount; txId++) {
-            if (normScores[txId] >= threshold) bestTxs.set(txId);
+            if (normScores[txId] >= threshold) bestTxsBitSet.set(txId);
         }
 
-        int geneId = getGeneIfAllIsoforms(bestTxs);
-        int bestCount = bestTxs.cardinality();
+        int geneId = getGeneIfAllIsoforms(bestTxsBitSet);
+        int bestCount = bestTxsBitSet.cardinality();
         if (bestCount == 1) {
-            int txId = bestTxs.nextSetBit(0);
+            int txId = bestTxsBitSet.nextSetBit(0);
             txCounts.addTo(txId, 1);
             geneCounts.addTo(geneId, 1);
         } else if (geneId != -1) {
@@ -170,23 +182,23 @@ public class IndexGraphTraversal {
     }
 
 
-    private BitSet verifyOrderedPath(ShortArrayList minims, int exploredCount, BitSet candidates) {
-        BitSet valid = (BitSet) candidates.clone();
+    private void verifyOrderedPath(ShortArrayList minims, int exploredCount, BitSet candidates, BitSet outValid) {
+        outValid.clear();
+        outValid.or(candidates);
 
-        for (int i = 0; i + 1 < exploredCount && !valid.isEmpty(); i++) {
+        for (int i = 0; i + 1 < exploredCount && !outValid.isEmpty(); i++) {
             IndexGraph.Node curNode = g.getNode(minims.getShort(i));
-            if (curNode == null) return new BitSet();
+            if (curNode == null) { outValid.clear(); return; }
 
             IndexGraph.Edge edge = curNode.getEdgeTo(minims.getShort(i + 1));
-            if (edge == null) return new BitSet();
+            if (edge == null) { outValid.clear(); return; }
 
-            for (int txId = valid.nextSetBit(0); txId >= 0; txId = valid.nextSetBit(txId + 1)) {
+            for (int txId = outValid.nextSetBit(0); txId >= 0; txId = outValid.nextSetBit(txId + 1)) {
                 IntArrayList positions = edge.getPositionsForTx(txId);
                 // Position at step i must be exactly i (0-indexed consecutive path)
-                if (!positions.contains(i)) valid.clear(txId);
+                if (!positions.contains(i)) outValid.clear(txId);
             }
         }
-        return valid;
     }
 
     private int getGeneIfAllIsoforms(BitSet txSet) {
@@ -198,27 +210,5 @@ public class IndexGraphTraversal {
             else if (geneId != g) return -1;
         }
         return geneId;
-    }
-
-    private int getGeneIfAllIsoforms(IntOpenHashSet txSet) {
-        if (txSet.isEmpty()) return -1;
-        int geneId = -1;
-        for (int tx : txSet) {
-            int g = tx2geneMapping.get(tx);
-            if (geneId == -1) geneId = g;
-            else if (geneId != g) return -1;
-        }
-        return geneId;
-    }
-
-    private short[] maskQualities(ShortArrayList minims) {
-        short[] res = new short[minims.size()];
-        for (int i = 0; i < res.length; i++)
-            res[i] = (short) (minims.getShort(i) | 0xC000);
-        return res;
-    }
-
-    private byte getQualityFlag(short minim) {
-        return (byte) ((minim >>> 14) & 3);
     }
 }
