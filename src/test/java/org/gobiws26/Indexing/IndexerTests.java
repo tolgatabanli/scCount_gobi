@@ -11,7 +11,7 @@ public class IndexerTests {
     @Test
     public void basicMinimizersFoundCorrectly() {
         String txId = "ENSSSCT00000081764"; // CTGGAGGAGGACGCATGCAAGGGAGAAAAGAATATTTCGCTGCCTGTTTGGAAATCTGAATTGGTTATTGAATATTATGTGTCTCTGATGCACAGGTCCTCCCCCACTTATGAATGTTGA
-        String[] expectedMinimizersString = new String[]{"ACGCATG", "AAGGGAG", "AAAAGAA", "AAAGAAT", "AATATTT", "ATATTTC", "ATTTCGC", "CCTGTTT", "AAATCTG", "AATCTGA", "AATTGGT", "AATATTA", "ATATTAT", "ATTATGT", "ATGCACA", "ACAGGTC", "ACTTATG", "AATGTTG"};
+        String[] expectedMinimizersString = new String[]{"AATCTGAA", "AAGGGAGA", "AAAAGAAT", "CCTGTTTG", "ACAGGTCC", "AAATCTGA", "ATATTTCG", "AGGTCCTC", "AATTGGTT", "AATGTTGA", "AAAGAATA", "AATATTAT", "ACTTATGA", "ATGTGTCT", "ATGCACAG", "AATATTTC", "ATTATGTG", "ATTTCGCT", "ATATTATG", "ACGCATGC"};
 
         Indexer idxer = new Indexer(transcripts, fasta);
         idxer.runIndex();
