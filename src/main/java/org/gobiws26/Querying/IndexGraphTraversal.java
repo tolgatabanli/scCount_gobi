@@ -30,7 +30,6 @@ public class IndexGraphTraversal {
     private final BitSet candidatesBitSet = new BitSet();
     private final BitSet validatedBitSet = new BitSet();
     private final BitSet bestTxsBitSet = new BitSet();
-    private final float[] normScores;
     public IndexGraphTraversal(IndexGraph g, Int2IntMap tx2gene) {
         this.g = g;
         this.tx2geneMapping = tx2gene;
@@ -38,7 +37,6 @@ public class IndexGraphTraversal {
         txCount = tx2geneMapping.size();
         scores   = new int[txCount];
         expected = new int[txCount];
-        normScores = new float[txCount];
     }
 
     // for benchmarking/logging
@@ -97,13 +95,13 @@ public class IndexGraphTraversal {
                 if (validatedBitSet.cardinality() == 1) {
                     // Unambiguous transcript
                     int txId = validatedBitSet.nextSetBit(0);
-                    txCounts.merge(txId, 1, Integer::sum);
-                    geneCounts.merge(tx2geneMapping.get(txId), 1, Integer::sum);
+                    txCounts.addTo(txId, 1);
+                    geneCounts.addTo(tx2geneMapping.get(txId), 1);
                     numReadsFoundHeuristically++;
                     return;
                 } else if (geneId != -1) {
                     // Unambiguous gene
-                    geneCounts.merge(geneId, 1, Integer::sum);
+                    geneCounts.addTo(geneId, 1);
                     numReadsFoundHeuristically++;
                     return;
                 }
@@ -113,9 +111,6 @@ public class IndexGraphTraversal {
         // 2) quasi-alignment
         Arrays.fill(scores, 0);
         Arrays.fill(expected, -1);
-
-        int firstScore = 0, secondScore = 0;
-        int halfMinims = (minims.size() - 1) / 2;
 
         for (int i = 0; i + 1 < minims.size(); i++) {
             short curMinim  = minims.getShort(i);
@@ -128,43 +123,25 @@ public class IndexGraphTraversal {
             if (edge == null) continue;
 
             for (int txId = edge.getTxIdIndex().nextSetBit(0); txId >= 0; txId = edge.getTxIdIndex().nextSetBit(txId + 1)) {
-                IntArrayList positions = edge.getPositionsForTx(txId);
-                for (int p = 0; p < positions.size(); p++) {
-                    int pos = positions.getInt(p);
+                short[] positions = edge.getPositionsForTx(txId);
+                for (int pos : positions) {
                     if (expected[txId] == -1 || expected[txId] == pos) {
                         int s = ++scores[txId];
-                        if (s > firstScore)       { secondScore = firstScore; firstScore = s; }
-                        else if (s > secondScore) { secondScore = s; }
                         expected[txId] = pos + 1;
                         break;
                     }
                 }
             }
-
-            // Early termination: dominant winner after at least half the minimizers
-            if (i >= halfMinims && firstScore >= secondScore * 2) break;
         }
 
-        // Normalize scores by transcript minimizer count, keep as float
         int maxRaw = 0;
         for (int s : scores) if (s > maxRaw) maxRaw = s;
         if (maxRaw == 0) { ambigReads++; return; }
 
-        Arrays.fill(normScores, 0f);
-        float maxNorm = 0f;
-        for (int txId = 0; txId < txCount; txId++) {
-            if (scores[txId] == 0) continue;
-            int txLen = g.getMinimCountOfTranscript(txId);
-            float norm = txLen > 0 ? (float) scores[txId] / txLen : 0f;
-            normScores[txId] = norm;
-            if (norm > maxNorm) maxNorm = norm;
-        }
-
-        // Pick best-scoring transcript(s) within a small tolerance for float comparison
+        // Choose transcripts with best raw score (no length normalization)
         bestTxsBitSet.clear();
-        float threshold = maxNorm * 0.999f;
         for (int txId = 0; txId < txCount; txId++) {
-            if (normScores[txId] >= threshold) bestTxsBitSet.set(txId);
+            if (scores[txId] == maxRaw) bestTxsBitSet.set(txId);
         }
 
         int geneId = getGeneIfAllIsoforms(bestTxsBitSet);
@@ -172,11 +149,12 @@ public class IndexGraphTraversal {
         if (bestCount == 1) {
             int txId = bestTxsBitSet.nextSetBit(0);
             txCounts.addTo(txId, 1);
-            geneCounts.addTo(geneId, 1);
+            geneCounts.addTo(tx2geneMapping.get(txId), 1);
         } else if (geneId != -1) {
             geneCounts.addTo(geneId, 1);
         } else {
-            ambigReads++; return;
+            // ambiguous across genes -> do nothing
+            return;
         }
         numReadsFoundWithAlignment++;
     }
@@ -193,10 +171,13 @@ public class IndexGraphTraversal {
             IndexGraph.Edge edge = curNode.getEdgeTo(minims.getShort(i + 1));
             if (edge == null) { outValid.clear(); return; }
 
-            for (int txId = outValid.nextSetBit(0); txId >= 0; txId = outValid.nextSetBit(txId + 1)) {
-                IntArrayList positions = edge.getPositionsForTx(txId);
+            A: for (int txId = outValid.nextSetBit(0); txId >= 0; txId = outValid.nextSetBit(txId + 1)) {
+                short[] positions = edge.getPositionsForTx(txId);
                 // Position at step i must be exactly i (0-indexed consecutive path)
-                if (!positions.contains(i)) outValid.clear(txId);
+                for (short pos : positions) {
+                    if (pos == i) continue A;
+                }
+                outValid.clear(txId);
             }
         }
     }
