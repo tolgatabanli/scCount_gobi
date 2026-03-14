@@ -31,9 +31,9 @@ public class CountMatrixWriter {
     public CountMatrixWriter(File file, IndexData idxData) throws IOException {
         bw = new BufferedWriter(new FileWriter(file));
         this.idxData = idxData;
-        this.transcriptInterpreter = idxData.int2TxString;
-        this.geneInterpreter = idxData.int2GeneString;
-        this.geneOfTranscript = idxData.txInt2GeneInt;
+        this.transcriptInterpreter = idxData.int2TxString();
+        this.geneInterpreter = idxData.int2GeneString();
+        this.geneOfTranscript = idxData.txInt2GeneInt();
     }
 
     public void write(Int2IntOpenHashMap geneInt2Counts, Int2IntOpenHashMap txInt2Counts) throws IOException {
