@@ -7,7 +7,7 @@ def short_to_nucleotide(value):
     """Converts a 16-bit short into a 7-character nucleotide sequence."""
     sequence = []
     # Loop from 12 down to 0, stepping by -2 (ignores the first 2 bits)
-    for i in range(12, -1, -2):
+    for i in range(14, -1, -2):
         bits = (value >> i) & 0b11
 
         if bits == 0b00:
