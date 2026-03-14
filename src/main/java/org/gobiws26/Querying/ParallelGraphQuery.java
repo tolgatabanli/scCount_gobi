@@ -23,6 +23,7 @@ public class ParallelGraphQuery {
     private Int2ObjectOpenHashMap<Int2IntOpenHashMap> txCountsPerBarcode;
     
     private int totalAmbigReads;
+    private int totalShortReadsDiscarded;
 
     public ParallelGraphQuery(IndexGraph g, Int2IntMap tx2gene, int numThreads) {
         this.idxGraph = g;
@@ -84,6 +85,7 @@ public class ParallelGraphQuery {
 
         mergeResults(workers);
         System.out.println("Total ambiguous reads: " + totalAmbigReads);
+        System.out.println("Total short reads discarded (< 3 minimizers): " + totalShortReadsDiscarded);
     }
 
     /**
@@ -141,6 +143,7 @@ public class ParallelGraphQuery {
 
         mergeBarcodeResults(workers);
         System.out.println("Total ambiguous reads: " + totalAmbigReads);
+        System.out.println("Total short reads discarded (< 3 minimizers): " + totalShortReadsDiscarded);
         
         // Print memory usage for diagnostics
         Runtime runtime = Runtime.getRuntime();
@@ -185,6 +188,7 @@ public class ParallelGraphQuery {
 
         mergeResults(workers);
         System.out.println("Total ambiguous reads: " + totalAmbigReads);
+        System.out.println("Total short reads discarded (< 3 minimizers): " + totalShortReadsDiscarded);
         System.out.println("numReadsFoundHeuristically: " + numReadsFoundHeuristically);
         System.out.println("numReadsFoundWithAlignment: " + numReadsFoundWithAlignment);
         System.out.println("numReadsEmptyCandidates: " + numReadsEmptyCandidates);
@@ -210,6 +214,10 @@ public class ParallelGraphQuery {
         return barcodeMapper; 
     }
 
+    public int getTotalShortReadsDiscarded() {
+        return totalShortReadsDiscarded;
+    }
+
     private void mergeResults(List<IndexGraphTraversal> workers) {
         for (IndexGraphTraversal worker : workers) {
             worker.getGeneCounts().int2IntEntrySet().fastForEach(e ->
@@ -221,6 +229,7 @@ public class ParallelGraphQuery {
             numReadsEmptyCandidates += worker.getNumReadsEmptyCandidates();
 
             this.totalAmbigReads += worker.getAmbigReads();
+            this.totalShortReadsDiscarded += worker.getShortReadsDiscarded();
         }
     }
 
@@ -253,6 +262,7 @@ public class ParallelGraphQuery {
             }
             
             this.totalAmbigReads += worker.getTotalAmbigReads();
+            this.totalShortReadsDiscarded += worker.getTotalShortReadsDiscarded();
         }
     }
 

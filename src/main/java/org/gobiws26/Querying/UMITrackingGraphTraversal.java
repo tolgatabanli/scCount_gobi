@@ -28,6 +28,7 @@ public class UMITrackingGraphTraversal {
     private final Set<String> sharedSeenTxBarcodeUMIs;
 
     private int totalAmbigReads = 0;
+    private int totalShortReadsDiscarded = 0;
 
     public UMITrackingGraphTraversal(IndexGraph g, Int2IntMap tx2gene, 
                                      Set<String> sharedSeenGeneBarcodeUMIs,
@@ -77,6 +78,7 @@ public class UMITrackingGraphTraversal {
         }
         
         totalAmbigReads += temp.getAmbigReads();
+        totalShortReadsDiscarded += temp.getShortReadsDiscarded();
     }
 
     public Int2ObjectOpenHashMap<Int2IntOpenHashMap> getGeneCountsPerBarcode() {
@@ -89,5 +91,9 @@ public class UMITrackingGraphTraversal {
 
     public int getTotalAmbigReads() {
         return totalAmbigReads;
+    }
+
+    public int getTotalShortReadsDiscarded() {
+        return totalShortReadsDiscarded;
     }
 }
