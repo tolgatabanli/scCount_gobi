@@ -2,7 +2,7 @@ package org.gobiws26.Indexing;
 
 import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
-import it.unimi.dsi.fastutil.shorts.ShortArrayList;
+import it.unimi.dsi.fastutil.ints.IntArrayList;
 import org.gobiws26.Config;
 import org.gobiws26.Querying.IndexGraph;
 
@@ -21,9 +21,9 @@ public class BinaryIndexReader {
             int magic = dis.readInt();
             if (magic != PROGRAM_IDENTIFIER) throw new IOException("Invalid file format. Not written by the same program.");
             int version = dis.readInt();
-            if (version != INDEX_VERSION) throw new IOException("Invalid file format. Not written by the same version.");
-            int kmerLength = dis.readInt();
-            Config.K = kmerLength;
+            if (version != INDEX_VERSION) throw new IOException("Invalid file format. Not written by the same version: " + version + " vs " + INDEX_VERSION);
+            Config.K = dis.readInt();
+            Config.minimLength = dis.readInt();
 
             // 1) read genes
             int numGenes = dis.readInt();
@@ -42,29 +42,24 @@ public class BinaryIndexReader {
                 txInt2GeneInt.put(i, dis.readInt());
             }
 
-            // 3) Read Tx -> Minimizers
+            // 3) Read minimizer paths and build triplet graph
             int numPaths = dis.readInt();
             if (numPaths != numTx) {
-                throw new IOException("While reading binary index file: Mismatch between transcript count and path count.");
+                throw new IOException("Mismatch between transcript count and path count.");
             }
 
-            // 4) construct indexing graph
             IndexGraph graph = new IndexGraph();
-
-            int[] tx2minimCount = new int[numTx];
             for (int txId = 0; txId < numPaths; txId++) {
                 int pathLength = dis.readInt();
-                tx2minimCount[txId] = pathLength;
                 if (pathLength > 0) {
-                    ShortArrayList path = new ShortArrayList(pathLength);
-                    for (int p = 0; p < pathLength; p++) {
-                        path.add(dis.readShort());
+                    IntArrayList minimizers = new IntArrayList(pathLength);
+                    for (int i = 0; i < pathLength; i++) {
+                        minimizers.add(dis.readInt());
                     }
-                    graph.addTxPath(txId, path);
+                    // Build triplet index from minimizers
+                    graph.addTxPath(txId, minimizers);
                 }
             }
-            //graph.setTx2minimCount(tx2minimCount);
-            graph.freezeGraph();
 
             return new IndexData(graph, int2TxString, int2GeneString, txInt2GeneInt);
         }

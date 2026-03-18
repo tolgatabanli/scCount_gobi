@@ -4,12 +4,10 @@ import org.gobiws26.Readers.GTFReader;
 import org.gobiws26.genomicstruct.Exon;
 import org.gobiws26.genomicstruct.Transcript;
 
-import htsjdk.samtools.reference.ReferenceSequence;
 import htsjdk.samtools.reference.ReferenceSequenceFileFactory;
 import htsjdk.samtools.reference.ReferenceSequenceFile;
 import java.io.BufferedWriter;
 import java.io.IOException;
-import java.nio.Buffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -23,7 +21,7 @@ public class LastBpFetcher {
                 ? Path.of(args[0])
                 : Path.of("data", "Sus_scrofa.Sscrofa11.1.gtf");
         final Path outBedPath = Path.of("data", "bedfiles_utr");
-        
+
         try {
             Map<String, Transcript> transcripts = new GTFReader().read(gtfPath.toFile());
             /* 

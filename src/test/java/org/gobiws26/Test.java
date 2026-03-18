@@ -72,6 +72,27 @@ public class Test {
         return sequence.toString();
     }
 
+    public static String intToNucleotideString(int value) {
+        StringBuilder sequence = new StringBuilder();
+
+        // Extract minimLength from Config to know how many bits to decode
+        int minimBits = Config.minimLength * 2;
+        
+        // Decode from the most significant bits down
+        for (int i = minimBits - 2; i >= 0; i -= 2) {
+            int bits = (value >> i) & 0b11;
+
+            switch (bits) {
+                case 0b00 -> sequence.append('A');
+                case 0b01 -> sequence.append('C');
+                case 0b11 -> sequence.append('G');
+                case 0b10 -> sequence.append('T');
+            }
+        }
+
+        return sequence.toString();
+    }
+
     public static short nucleotideStringToShort(String sequence) {
         // init with first two bits (11000000 00000000)
         short value = (short) 0xC000;
@@ -87,6 +108,26 @@ public class Test {
             };
 
             int shiftAmount = 12 - (i * 2);
+            value |= (bits << shiftAmount);
+        }
+
+        return value;
+    }
+
+    public static int nucleotideStringToInt(String sequence) {
+        int value = 0;
+
+        for (int i = 0; i < Math.min(sequence.length(), Config.minimLength); i++) {
+            char nucleotide = sequence.charAt(i);
+            int bits = switch (nucleotide) {
+                case 'A' -> 0b00;
+                case 'C' -> 0b01;
+                case 'T' -> 0b10;
+                case 'G' -> 0b11;
+                default -> throw new IllegalArgumentException("Invalid nucleotide: " + nucleotide);
+            };
+
+            int shiftAmount = (Config.minimLength - 1 - i) * 2;
             value |= (bits << shiftAmount);
         }
 

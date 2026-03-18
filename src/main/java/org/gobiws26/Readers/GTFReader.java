@@ -19,10 +19,6 @@ public class GTFReader {
         this.int2Transcript = new ArrayList<>(); // might add getter if created this way
     }
 
-    public GTFReader(ArrayList<String> int2Transcript) {
-        this.int2Transcript = int2Transcript;
-    }
-
     public HashMap<String, Transcript> read(File gtfFile) throws IOException {
         HashMap<String, Transcript> transcripts = new HashMap<>();
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(openGtfStream(gtfFile)))) {

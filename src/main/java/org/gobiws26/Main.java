@@ -32,6 +32,7 @@ public class Main {
 
     private static int threads = 1;
     private static int batch_size = 1_000_000;
+    private static boolean writeDetails = false;
 
     public static final int PROGRAM_IDENTIFIER = 0x474F4249; // "GOBI"
 
@@ -55,11 +56,9 @@ public class Main {
             File countMatrixFile = new File(outputDir, "counts.tsv");
 
             IndexData idxData = BinaryIndexReader.read(indexFile);
-            //IndexChainData idxData = BinaryIndexChainReader.read(indexFile);
 
             ParallelGraphQuery pgq = new ParallelGraphQuery(idxData.graph(), idxData.txInt2GeneInt(), threads,
-                                                             readOneFile != null); // Enable barcode mode if r1 provided
-            //ParallelChainQuery pgq = new ParallelChainQuery(idxData, threads);
+                                                             readOneFile != null, writeDetails);
 
             // Process reads in batches to maintain constant memory usage
             final int BATCH_SIZE = batch_size;
@@ -89,8 +88,8 @@ public class Main {
                             FastqRecord readOneRecord = readOneReader.next();
                             ReadOneParser.BarcodeUMI extracted = ReadOneParser.extract(readOneRecord);
                             if (extracted != null) {
-                                batchBarcodes.add(extracted.barcode);
-                                batchUMIs.add(extracted.umi);
+                                batchBarcodes.add(extracted.barcode());
+                                batchUMIs.add(extracted.umi());
                             } else {
                                 System.err.println("Warning: Could not extract barcode/UMI from read: " + readOneRecord.getReadName());
                                 batchBarcodes.add("UNKNOWN");
@@ -133,14 +132,23 @@ public class Main {
 
                 // Final progress report
                 System.out.println("All " + totalProcessed + " reads mapped and counted");
-
-                // Shutdown executor after all batches
+                
+                // Write summary statistics
+                File summaryFile = new File(outputDir, "miniqut3.summary");
+                pgq.writeSummary(summaryFile);
+                
+                // Write details file if requested
+                if (writeDetails) {
+                    File detailsFile = new File(outputDir, "read_assignments.tsv");
+                    pgq.writeReadMappingDetails(detailsFile, idxData.int2GeneString(), idxData.int2TxString());
+                }
+                
                 pgq.shutdown();
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
 
-            // Write output
+            // write matrix with barcodes
             if (readOneFile != null) {
                 // Barcode-aware mode: output as sparse matrix
                 CountMatrixWriter cmw = new CountMatrixWriter(countMatrixFile, idxData.int2TxString(),
@@ -149,7 +157,7 @@ public class Main {
                                            pgq.getBarcodeMapper(), outputDir);
                 System.out.println("Wrote sparse matrix (Market Matrix format) to: " + outputDir);
             } else {
-                // Legacy mode: output counts
+                // output only counts
                 Int2IntOpenHashMap geneInt2Counts = pgq.getGlobalGeneCounts();
                 Int2IntOpenHashMap txInt2Counts = pgq.getGlobalTxCounts();
                 CountMatrixWriter cmw = new CountMatrixWriter(countMatrixFile, idxData.int2TxString(),
@@ -206,6 +214,15 @@ public class Main {
                     }
                     break;
 
+                case "-minimLength":
+                    if (i + 1 < args.length) {
+                        Config.minimLength = Integer.parseInt(args[++i]);
+                    } else {
+                        System.err.println("Error: [-minimLength] Please specify a minimizer length!");
+                        System.exit(1);
+                    }
+                    break;
+
                 case "-idx":
                     if (i + 1 < args.length) {
                         indexFile = new File(args[++i]);
@@ -221,6 +238,9 @@ public class Main {
                     System.exit(1);
             }
         }
+
+        // Validate minimizer length
+        Config.validateMinimizerLength();
 
         // TODO: check required args
         if (fastaRef == null) {
@@ -278,6 +298,9 @@ public class Main {
                     } else {
                         System.err.println("Error: [-batchSize] Please specify a batch size!");
                     }
+                    break;
+                case "-details":
+                    writeDetails = true;
                     break;
 
                 default:

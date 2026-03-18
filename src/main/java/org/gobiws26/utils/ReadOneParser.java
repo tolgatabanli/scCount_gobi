@@ -10,31 +10,6 @@ public class ReadOneParser {
     public static final int BARCODE_LENGTH = 27;
     public static final int UMI_LENGTH = 16;
 
-    /**
-     * Extracts the spatial barcode from a readOne record.
-     * @param read the FastqRecord from readOne file
-     * @return the spatial barcode as a String, or null if sequence is too short
-     */
-    public static String extractBarcode(FastqRecord read) {
-        byte[] sequence = read.getReadBases();
-        if (sequence.length < BARCODE_LENGTH) {
-            return null;
-        }
-        return new String(sequence, 0, BARCODE_LENGTH);
-    }
-
-    /**
-     * Extracts the UMI from a readOne record.
-     * @param read the FastqRecord from readOne file
-     * @return the UMI as a String, or null if sequence is too short
-     */
-    public static String extractUMI(FastqRecord read) {
-        byte[] sequence = read.getReadBases();
-        if (sequence.length < BARCODE_LENGTH + UMI_LENGTH) {
-            return null;
-        }
-        return new String(sequence, BARCODE_LENGTH, UMI_LENGTH);
-    }
 
     /**
      * Extracts both barcode and UMI in one call for efficiency.
@@ -52,20 +27,13 @@ public class ReadOneParser {
     }
 
     /**
-     * Container class for barcode and UMI pair.
-     */
-    public static class BarcodeUMI {
-        public final String barcode;
-        public final String umi;
+         * Container class for barcode and UMI pair.
+         */
+        public record BarcodeUMI(String barcode, String umi) {
 
-        public BarcodeUMI(String barcode, String umi) {
-            this.barcode = barcode;
-            this.umi = umi;
+            @Override
+            public String toString() {
+                return barcode + "-" + umi;
+            }
         }
-
-        @Override
-        public String toString() {
-            return barcode + "-" + umi;
-        }
-    }
 }

@@ -3,17 +3,17 @@ package org.gobiws26.Querying;
 import it.unimi.dsi.fastutil.ints.Int2IntMap;
 import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.ints.IntArrayList;
+import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 import org.gobiws26.Indexing.IndexData;
 
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.util.ArrayList;
 
 public class CountMatrixWriter {
-    private BufferedWriter bw;
-    private IndexData idxData;
+    private final BufferedWriter bw;
 
     Int2ObjectOpenHashMap<String> transcriptInterpreter;
     Int2ObjectOpenHashMap<String> geneInterpreter;
@@ -30,7 +30,6 @@ public class CountMatrixWriter {
 
     public CountMatrixWriter(File file, IndexData idxData) throws IOException {
         bw = new BufferedWriter(new FileWriter(file));
-        this.idxData = idxData;
         this.transcriptInterpreter = idxData.int2TxString();
         this.geneInterpreter = idxData.int2GeneString();
         this.geneOfTranscript = idxData.txInt2GeneInt();
@@ -75,77 +74,6 @@ public class CountMatrixWriter {
     }
 
     /**
-     * Write counts as a matrix with spatial barcodes as columns.
-     * Rows are genes and transcripts, columns are spatial barcodes.
-     * Format:
-     *   gene_id\tbarcode1\tbarcode2\tbarcode3...
-     */
-    public void writeBarcodeMatrix(Int2ObjectOpenHashMap<Int2IntOpenHashMap> geneCountsPerBarcode,
-                                   Int2ObjectOpenHashMap<Int2IntOpenHashMap> txCountsPerBarcode,
-                                   BarcodeMapper barcodeMapper) throws IOException {
-        // Get sorted barcode IDs
-        int[] barcodeIds = barcodeMapper.getAllIds();
-
-        // Write header: gene_id followed by all barcodes
-        bw.write("gene_id");
-        for (int barcodeId : barcodeIds) {
-            bw.write("\t");
-            bw.write(barcodeMapper.getBarcode(barcodeId));
-        }
-        bw.newLine();
-
-        // Collect all gene IDs to output
-        java.util.Set<Integer> geneInts = new java.util.HashSet<>();
-        for (var entry : geneCountsPerBarcode.int2ObjectEntrySet()) {
-            Int2IntOpenHashMap geneCounts = entry.getValue();
-            for (int geneInt : geneCounts.keySet()) {
-                geneInts.add(geneInt);
-            }
-        }
-
-        // Write gene rows
-        for (int geneInt : geneInts) {
-            String geneId = geneInterpreter.get(geneInt);
-            if (geneId != null) {
-                bw.write(geneId);
-                for (int barcodeId : barcodeIds) {
-                    bw.write("\t");
-                    Int2IntOpenHashMap geneCounts = geneCountsPerBarcode.get(barcodeId);
-                    int count = (geneCounts != null) ? geneCounts.getOrDefault(geneInt, 0) : 0;
-                    bw.write(String.valueOf(count));
-                }
-                bw.newLine();
-            }
-        }
-
-        // Collect all transcript IDs to output
-        java.util.Set<Integer> txInts = new java.util.HashSet<>();
-        for (var entry : txCountsPerBarcode.int2ObjectEntrySet()) {
-            Int2IntOpenHashMap txCounts = entry.getValue();
-            for (int txInt : txCounts.keySet()) {
-                txInts.add(txInt);
-            }
-        }
-
-        // Write transcript rows
-        for (int txInt : txInts) {
-            String txId = transcriptInterpreter.get(txInt);
-            if (txId != null) {
-                bw.write(txId);
-                for (int barcodeId : barcodeIds) {
-                    bw.write("\t");
-                    Int2IntOpenHashMap txCounts = txCountsPerBarcode.get(barcodeId);
-                    int count = (txCounts != null) ? txCounts.getOrDefault(txInt, 0) : 0;
-                    bw.write(String.valueOf(count));
-                }
-                bw.newLine();
-            }
-        }
-
-        bw.flush();
-    }
-
-    /**
      * Write counts as a sparse matrix in Market Matrix format (MTX).
      * Creates three files in the output directory:
      * - matrix.mtx: Sparse coordinate matrix (industry-standard format)
@@ -159,74 +87,62 @@ public class CountMatrixWriter {
         
         long startTime = System.currentTimeMillis();
         
-        // Collect all unique gene and transcript IDs (features)
-        java.util.Set<Integer> featureInts = new java.util.HashSet<>();
+        // Collect unique gene and transcript IDs using fastutil IntSet for efficiency
+        IntOpenHashSet geneInts = new IntOpenHashSet();
+        IntOpenHashSet txInts = new IntOpenHashSet();
         long totalNonZero = 0;
         
         for (var entry : geneCountsPerBarcode.int2ObjectEntrySet()) {
-            Int2IntOpenHashMap geneCounts = entry.getValue();
-            featureInts.addAll(geneCounts.keySet());
-            totalNonZero += geneCounts.size();
+            geneInts.addAll(entry.getValue().keySet());
+            totalNonZero += entry.getValue().size();
         }
         
         for (var entry : txCountsPerBarcode.int2ObjectEntrySet()) {
-            Int2IntOpenHashMap txCounts = entry.getValue();
-            featureInts.addAll(txCounts.keySet());
-            totalNonZero += txCounts.size();
+            txInts.addAll(entry.getValue().keySet());
+            totalNonZero += entry.getValue().size();
         }
         
-        int numBarcodes = barcodeMapper.size();
-        int numFeatures = featureInts.size();
+        // Sort IDs for consistent matrix indexing
+        IntArrayList sortedGeneIds = new IntArrayList(geneInts);
+        IntArrayList sortedTxIds = new IntArrayList(txInts);
+        sortedGeneIds.sort(null);
+        sortedTxIds.sort(null);
         
-        System.out.printf("Writing sparse matrix: %d features × %d barcodes (%d non-zero entries)%n", 
-                          numFeatures, numBarcodes, totalNonZero);
+        int numBarcodes = barcodeMapper.size();
+        int numGenes = sortedGeneIds.size();
+        int numTranscripts = sortedTxIds.size();
+        int numFeatures = numGenes + numTranscripts;
+        
+        System.out.printf("Writing sparse matrix: %d features (%d genes + %d transcripts) × %d barcodes (%d non-zero entries)%n", 
+                          numFeatures, numGenes, numTranscripts, numBarcodes, totalNonZero);
+        
+        // Create mappings from internal IDs to matrix indices
+        Int2IntOpenHashMap geneIntToIdx = new Int2IntOpenHashMap();
+        Int2IntOpenHashMap txIntToIdx = new Int2IntOpenHashMap();
+        
+        for (int i = 0; i < sortedGeneIds.size(); i++) {
+            geneIntToIdx.put(sortedGeneIds.getInt(i), i + 1);
+        }
+        
+        for (int i = 0; i < sortedTxIds.size(); i++) {
+            txIntToIdx.put(sortedTxIds.getInt(i), numGenes + i + 1);
+        }
         
         // Write matrix.mtx (Market Matrix format - sparse coordinate)
         File matrixFile = new File(outputDir, "matrix.mtx");
         try (BufferedWriter mtxWriter = new BufferedWriter(new FileWriter(matrixFile))) {
             mtxWriter.write("%%MatrixMarket matrix coordinate integer general\n");
             mtxWriter.write("%\n");
-            mtxWriter.write("% Sparse count matrix from scCount\n");
+            mtxWriter.write("% Sparse count matrix from MiniQuT3\n");
             mtxWriter.write("% Rows: genes/transcripts | Columns: spatial barcodes\n");
             mtxWriter.write("%\n");
             mtxWriter.write(numFeatures + " " + numBarcodes + " " + totalNonZero + "\n");
             
-            // Write all non-zero entries in 1-indexed format
-            // MTX format: feature_index(1-based) barcode_index(1-based) count
-            int featureIdx = 1;
-            java.util.Map<Integer, Integer> featureIntToIdx = new java.util.HashMap<>();
-            
-            for (int featureInt : featureInts) {
-                featureIntToIdx.put(featureInt, featureIdx++);
-            }
-            
             // Write entries for genes
-            for (var barcodeEntry : geneCountsPerBarcode.int2ObjectEntrySet()) {
-                int barcodeInt = barcodeEntry.getIntKey();
-                int barcodeIdx = barcodeInt + 1; // 1-indexed for MTX
-                Int2IntOpenHashMap geneCounts = barcodeEntry.getValue();
-                
-                for (var geneEntry : geneCounts.int2IntEntrySet()) {
-                    int geneInt = geneEntry.getIntKey();
-                    int count = geneEntry.getIntValue();
-                    int geneIdx = featureIntToIdx.get(geneInt);
-                    mtxWriter.write(geneIdx + " " + barcodeIdx + " " + count + "\n");
-                }
-            }
-            
+            writeEntriesPerFeature(geneCountsPerBarcode, mtxWriter, geneIntToIdx);
+
             // Write entries for transcripts
-            for (var barcodeEntry : txCountsPerBarcode.int2ObjectEntrySet()) {
-                int barcodeInt = barcodeEntry.getIntKey();
-                int barcodeIdx = barcodeInt + 1; // 1-indexed for MTX
-                Int2IntOpenHashMap txCounts = barcodeEntry.getValue();
-                
-                for (var txEntry : txCounts.int2IntEntrySet()) {
-                    int txInt = txEntry.getIntKey();
-                    int count = txEntry.getIntValue();
-                    int txIdx = featureIntToIdx.get(txInt);
-                    mtxWriter.write(txIdx + " " + barcodeIdx + " " + count + "\n");
-                }
-            }
+            writeEntriesPerFeature(txCountsPerBarcode, mtxWriter, txIntToIdx);
         }
         
         // Write barcodes.tsv
@@ -239,25 +155,14 @@ public class CountMatrixWriter {
             }
         }
         
-        // Write features.tsv (gene/transcript names and type)
+        // Write features.tsv (gene/transcript names only - Ensembl IDs indicate type)
         File featuresFile = new File(outputDir, "features.tsv");
         try (BufferedWriter featuresWriter = new BufferedWriter(new FileWriter(featuresFile))) {
-            java.util.List<Integer> sortedFeatureInts = new ArrayList<>(featureInts);
-            java.util.Collections.sort(sortedFeatureInts);
-            
-            for (int featureInt : sortedFeatureInts) {
-                String featureName = geneInterpreter.get(featureInt);
-                if (featureName == null) {
-                    featureName = transcriptInterpreter.get(featureInt);
-                }
-                
-                String featureType = geneInterpreter.get(featureInt) != null ? "Gene" : "Transcript";
-                
-                if (featureName != null) {
-                    featuresWriter.write(featureName + "\t" + featureType);
-                    featuresWriter.newLine();
-                }
-            }
+            // Write genes first (indices 1 to numGenes) - already sorted
+            writeFeatures(sortedGeneIds, featuresWriter, geneInterpreter);
+
+            // Write transcripts next (indices numGenes+1 onwards) - already sorted
+            writeFeatures(sortedTxIds, featuresWriter, transcriptInterpreter);
         }
         
         long elapsedTime = System.currentTimeMillis() - startTime;
@@ -267,5 +172,31 @@ public class CountMatrixWriter {
         System.out.println("  - matrix.mtx (sparse count matrix)");
         System.out.println("  - barcodes.tsv (barcode identifiers)");
         System.out.println("  - features.tsv (gene/transcript identifiers)");
+    }
+
+    private void writeFeatures(IntArrayList sortedFeatureIds, BufferedWriter featuresWriter, Int2ObjectOpenHashMap<String> int2FeatInterpreter) throws IOException {
+        for (int i = 0; i < sortedFeatureIds.size(); i++) {
+            int featureId = sortedFeatureIds.getInt(i);
+            String featureName = int2FeatInterpreter.get(featureId);
+            if (featureName != null) {
+                featuresWriter.write(featureName);
+                featuresWriter.newLine();
+            }
+        }
+    }
+
+    private void writeEntriesPerFeature(Int2ObjectOpenHashMap<Int2IntOpenHashMap> countsPerBarcode, BufferedWriter mtxWriter, Int2IntOpenHashMap intToIdInterpreter) throws IOException {
+        for (var barcodeEntry : countsPerBarcode.int2ObjectEntrySet()) {
+            int barcodeInt = barcodeEntry.getIntKey();
+            int barcodeIdx = barcodeInt + 1; // 1-indexed for MTX
+            Int2IntOpenHashMap geneCounts = barcodeEntry.getValue();
+
+            for (var geneEntry : geneCounts.int2IntEntrySet()) {
+                int geneInt = geneEntry.getIntKey();
+                int count = geneEntry.getIntValue();
+                int mappedGeneIdx = intToIdInterpreter.get(geneInt);
+                mtxWriter.write(mappedGeneIdx + " " + barcodeIdx + " " + count + "\n");
+            }
+        }
     }
 }

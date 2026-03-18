@@ -4,7 +4,10 @@ import htsjdk.samtools.fastq.FastqRecord;
 import it.unimi.dsi.fastutil.ints.Int2IntMap;
 import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.ints.IntArrayList;
+import it.unimi.dsi.fastutil.booleans.BooleanArrayList;
 
+import java.io.*;
 import java.util.*;
 import java.util.concurrent.*;
 
@@ -24,6 +27,20 @@ public class ParallelGraphQuery {
     
     private int totalAmbigReads;
     private int totalShortReadsDiscarded;
+    private int totalReadsAssignedToTranscripts;
+    private int totalReadsAssignedToGenes;
+    
+    // Separated by level (transcript vs gene) and phase
+    private int numTxFoundHeuristically = 0;
+    private int numGenesFoundHeuristically = 0;
+    private int numTxFoundWithAlignment = 0;
+    private int numGenesFoundWithAlignment = 0;
+    
+    // Track per-read mapping details if writeDetails is true
+    // Uses int encoding to save memory: -2=short, -1=ambiguous, >=0=actual ID
+    private final boolean writeDetails;
+    private final IntArrayList readMappingIds;
+    private final BooleanArrayList readMappingIsGene;
 
     public ParallelGraphQuery(IndexGraph g, Int2IntMap tx2gene, int numThreads) {
         this.idxGraph = g;
@@ -33,6 +50,9 @@ public class ParallelGraphQuery {
         this.globalGeneCounts = new Int2IntOpenHashMap();
         this.globalTxCounts   = new Int2IntOpenHashMap();
         this.barcodeMapper = null;
+        this.writeDetails = false;
+        this.readMappingIds = null;
+        this.readMappingIsGene = null;
     }
 
     /**
@@ -46,6 +66,9 @@ public class ParallelGraphQuery {
         this.globalGeneCounts = new Int2IntOpenHashMap();
         this.globalTxCounts   = new Int2IntOpenHashMap();
         this.barcodeMapper = withBarcodes ? new BarcodeMapper() : null;
+        this.writeDetails = false;
+        this.readMappingIds = null;
+        this.readMappingIsGene = null;
         if (withBarcodes) {
             this.geneCountsPerBarcode = new Int2ObjectOpenHashMap<>();
             this.txCountsPerBarcode = new Int2ObjectOpenHashMap<>();
@@ -53,39 +76,23 @@ public class ParallelGraphQuery {
     }
 
     /**
-     * Process reads without barcode information (legacy mode).
+     * Constructor with optional per-read mapping tracking.
      */
-    public void processAll(List<FastqRecord> allReads) throws InterruptedException {
-        List<Future<IndexGraphTraversal>> futures = new ArrayList<>(numThreads);
-        int chunkSize = (allReads.size() + numThreads - 1) / numThreads;
-
-        for (int i = 0; i < numThreads; i++) {
-            final int start = i * chunkSize;
-            if (start >= allReads.size()) break;
-            final int end = Math.min(start + chunkSize, allReads.size());
-            final List<FastqRecord> slice = allReads.subList(start, end);
-
-            futures.add(executor.submit(() -> {
-                IndexGraphTraversal worker = new IndexGraphTraversal(idxGraph, tx2gene);
-                for (FastqRecord fastqRecord : slice) {
-                    worker.process(fastqRecord);
-                }
-                return worker;
-            }));
+    public ParallelGraphQuery(IndexGraph g, Int2IntMap tx2gene, int numThreads, boolean withBarcodes, boolean trackDetails) {
+        this.idxGraph = g;
+        this.tx2gene = tx2gene;
+        this.numThreads = Math.min(numThreads, Runtime.getRuntime().availableProcessors());
+        this.executor = Executors.newFixedThreadPool(this.numThreads);
+        this.globalGeneCounts = new Int2IntOpenHashMap();
+        this.globalTxCounts   = new Int2IntOpenHashMap();
+        this.barcodeMapper = withBarcodes ? new BarcodeMapper() : null;
+        this.writeDetails = trackDetails;
+        this.readMappingIds = trackDetails ? new IntArrayList() : null;
+        this.readMappingIsGene = trackDetails ? new BooleanArrayList() : null;
+        if (withBarcodes) {
+            this.geneCountsPerBarcode = new Int2ObjectOpenHashMap<>();
+            this.txCountsPerBarcode = new Int2ObjectOpenHashMap<>();
         }
-
-        List<IndexGraphTraversal> workers = new ArrayList<>(futures.size());
-        for (Future<IndexGraphTraversal> f : futures) {
-            try {
-                workers.add(f.get());
-            } catch (ExecutionException e) {
-                throw new RuntimeException("Worker task failed", e.getCause());
-            }
-        }
-
-        mergeResults(workers);
-        System.out.println("Total ambiguous reads: " + totalAmbigReads);
-        System.out.println("Total short reads discarded (< 3 minimizers): " + totalShortReadsDiscarded);
     }
 
     /**
@@ -144,12 +151,14 @@ public class ParallelGraphQuery {
         mergeBarcodeResults(workers);
         System.out.println("Total ambiguous reads: " + totalAmbigReads);
         System.out.println("Total short reads discarded (< 3 minimizers): " + totalShortReadsDiscarded);
+        System.out.println("Reads assigned to transcripts: " + totalReadsAssignedToTranscripts);
+        System.out.println("Reads assigned to genes: " + totalReadsAssignedToGenes);
         
         // Print memory usage for diagnostics
         Runtime runtime = Runtime.getRuntime();
         long usedMemory = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024);
         long totalGeneEntries = geneCountsPerBarcode.values().stream()
-            .mapToLong(m -> m.size()).sum();
+            .mapToLong(Int2IntOpenHashMap::size).sum();
         System.out.printf("Memory used: %d MB | Gene entries: %d | Barcodes: %d%n", 
                           usedMemory, totalGeneEntries, geneCountsPerBarcode.size());
     }
@@ -169,7 +178,7 @@ public class ParallelGraphQuery {
             final List<FastqRecord> slice = batchReads.subList(start, end);
 
             futures.add(executor.submit(() -> {
-                IndexGraphTraversal worker = new IndexGraphTraversal(idxGraph, tx2gene);
+                IndexGraphTraversal worker = new IndexGraphTraversal(idxGraph, tx2gene, writeDetails);
                 for (FastqRecord fastqRecord : slice) {
                     worker.process(fastqRecord);
                 }
@@ -187,11 +196,25 @@ public class ParallelGraphQuery {
         }
 
         mergeResults(workers);
+        
+        // Collect per-read mapping results in order if tracking details
+        if (writeDetails && readMappingIds != null) {
+            for (IndexGraphTraversal worker : workers) {
+                IntArrayList workerIds = worker.getReadMappingIds();
+                BooleanArrayList workerIsGene = worker.getReadMappingIsGene();
+                if (workerIds != null && workerIsGene != null) {
+                    readMappingIds.addAll(workerIds);
+                    readMappingIsGene.addAll(workerIsGene);
+                }
+            }
+        }
+        
         System.out.println("Total ambiguous reads: " + totalAmbigReads);
         System.out.println("Total short reads discarded (< 3 minimizers): " + totalShortReadsDiscarded);
-        System.out.println("numReadsFoundHeuristically: " + numReadsFoundHeuristically);
-        System.out.println("numReadsFoundWithAlignment: " + numReadsFoundWithAlignment);
-        System.out.println("numReadsEmptyCandidates: " + numReadsEmptyCandidates);
+        System.out.println("Heuristic phase - transcripts: " + numTxFoundHeuristically);
+        System.out.println("Heuristic phase - genes: " + numGenesFoundHeuristically);
+        System.out.println("Scoring phase - transcripts: " + numTxFoundWithAlignment);
+        System.out.println("Scoring phase - genes: " + numGenesFoundWithAlignment);
     }
 
     public void shutdown() throws InterruptedException {
@@ -214,22 +237,21 @@ public class ParallelGraphQuery {
         return barcodeMapper; 
     }
 
-    public int getTotalShortReadsDiscarded() {
-        return totalShortReadsDiscarded;
-    }
-
     private void mergeResults(List<IndexGraphTraversal> workers) {
         for (IndexGraphTraversal worker : workers) {
             worker.getGeneCounts().int2IntEntrySet().fastForEach(e ->
                     globalGeneCounts.addTo(e.getIntKey(), e.getIntValue()));
             worker.getTxCounts().int2IntEntrySet().fastForEach(e ->
                     globalTxCounts.addTo(e.getIntKey(), e.getIntValue()));
-            numReadsFoundHeuristically += worker.getNumReadsFoundHeuristically();
-            numReadsFoundWithAlignment += worker.getNumReadsFoundWithAlignment();
-            numReadsEmptyCandidates += worker.getNumReadsEmptyCandidates();
+            numTxFoundHeuristically += worker.getNumTxFoundHeuristically();
+            numGenesFoundHeuristically += worker.getNumGenesFoundHeuristically();
+            numTxFoundWithAlignment += worker.getNumTxFoundWithAlignment();
+            numGenesFoundWithAlignment += worker.getNumGenesFoundWithAlignment();
 
             this.totalAmbigReads += worker.getAmbigReads();
             this.totalShortReadsDiscarded += worker.getShortReadsDiscarded();
+            this.totalReadsAssignedToTranscripts += worker.getReadsAssignedToTranscripts();
+            this.totalReadsAssignedToGenes += worker.getReadsAssignedToGenes();
         }
     }
 
@@ -263,10 +285,71 @@ public class ParallelGraphQuery {
             
             this.totalAmbigReads += worker.getTotalAmbigReads();
             this.totalShortReadsDiscarded += worker.getTotalShortReadsDiscarded();
+            this.totalReadsAssignedToTranscripts += worker.getReadsAssignedToTranscripts();
+            this.totalReadsAssignedToGenes += worker.getReadsAssignedToGenes();
         }
     }
 
-    private int numReadsFoundHeuristically = 0;
-    private int numReadsFoundWithAlignment = 0;
-    private int numReadsEmptyCandidates = 0;
+
+    public void writeSummary(File summaryFile) throws IOException {
+        try (FileWriter writer = new FileWriter(summaryFile)) {
+            writer.write("=== miniQuT3 Query Summary ===\n\n");
+            writer.write("Total reads processed: " + (totalShortReadsDiscarded + totalReadsAssignedToTranscripts + totalReadsAssignedToGenes + totalAmbigReads) + "\n");
+            writer.write("Reads assigned to transcripts: " + totalReadsAssignedToTranscripts + "\n");
+            writer.write("Reads assigned to genes: " + totalReadsAssignedToGenes + "\n");
+            writer.write("Ambiguous reads: " + totalAmbigReads + "\n");
+            writer.write("Short reads discarded: " + totalShortReadsDiscarded + "\n");
+            writer.write("\nHeuristic phase - transcripts: " + numTxFoundHeuristically + "\n");
+            writer.write("Heuristic phase - genes: " + numGenesFoundHeuristically + "\n");
+            writer.write("Scoring phase - transcripts: " + numTxFoundWithAlignment + "\n");
+            writer.write("Scoring phase - genes: " + numGenesFoundWithAlignment + "\n");
+        }
+        System.out.println("Wrote summary to: " + summaryFile.getAbsolutePath());
+    }
+
+    /**
+     * Write per-read mapping details to a file.
+     * Format: one line per read, containing gene name, transcript name, "-" for ambiguous, or "*" for short reads
+     */
+    public void writeReadMappingDetails(File detailsFile, Int2ObjectOpenHashMap<String> int2GeneString,
+                                       Int2ObjectOpenHashMap<String> int2TxString) throws IOException {
+        if (readMappingIds == null || readMappingIds.isEmpty()) {
+            System.out.println("No read mapping details to write (tracking was disabled or no reads processed)");
+            return;
+        }
+        
+        try (java.io.FileWriter writer = new java.io.FileWriter(detailsFile)) {
+            for (int i = 0; i < readMappingIds.size(); i++) {
+                int id = readMappingIds.getInt(i);
+                
+                if (id == -2) { // was too short
+                    writer.write("*\n");
+                } else if (id == -1) { // ambig
+                    writer.write("-\n");
+                } else { // valids
+                    boolean isGene = readMappingIsGene.getBoolean(i);
+                    if (isGene) {
+                        // Gene ID: look up gene name
+                        String geneName = int2GeneString.get(id);
+                        if (geneName != null) {
+                            writer.write(geneName);
+                        } else {
+                            writer.write(String.valueOf(id));
+                        }
+                    } else {
+                        // Transcript ID: look up transcript name
+                        String txName = int2TxString.get(id);
+                        if (txName != null) {
+                            writer.write(txName);
+                        } else {
+                            writer.write(String.valueOf(id));
+                        }
+                    }
+                    writer.write('\n');
+                }
+            }
+        }
+        
+        System.out.println("Wrote " + readMappingIds.size() + " read mapping results to " + detailsFile.getAbsolutePath());
+    }
 }

@@ -9,7 +9,7 @@ import java.util.Arrays;
 import static htsjdk.samtools.util.SequenceUtil.reverseComplement;
 
 public class TranscriptomeFetcher {
-    private ReferenceSequenceFile fasta;
+    private final ReferenceSequenceFile fasta;
 
     public TranscriptomeFetcher(ReferenceSequenceFile fasta) {
         this.fasta = fasta;
