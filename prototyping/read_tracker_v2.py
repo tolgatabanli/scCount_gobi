@@ -20,7 +20,8 @@ not_present_in_a = set()
 not_present_in_b = set()
 paralogous = set()
 repeat = set()
-filtered_by_quality = set()
+filtered_by_quality_in_a = set()
+filtered_by_quality_in_b = set()
 read_status = {}
 gtf_annotation = pr.PyRanges()
 repeat_annotation = pr.PyRanges()
@@ -142,7 +143,8 @@ def is_repeat(source_locus, target_locus):
 
 def mark_mapped_elsewhere(read_id, source_side):
     read_status[read_id] = "mapped_elsewhere"
-    filtered_by_quality.discard(read_id)
+    filtered_by_quality_in_a.discard(read_id)
+    filtered_by_quality_in_b.discard(read_id)
     if source_side == "a":
         not_present_in_a.discard(read_id)
         seen_in_a.add(read_id)
@@ -155,7 +157,10 @@ def mark_filtered_in_other(read_id, source_side):
     if read_status.get(read_id) == "mapped_elsewhere":
         return
     read_status[read_id] = "filtered_by_quality"
-    filtered_by_quality.add(read_id)
+    if source_side == "a":
+        filtered_by_quality_in_a.add(read_id)
+    else:
+        filtered_by_quality_in_b.add(read_id)
 
 
 def mark_not_present_in_other(read_id, source_side):
@@ -373,7 +378,7 @@ def resolve_ids_to_loci(id_list):
 def main():
     args = parse_args()
     bam_a, bam_b, indices= load_parameters(args)
-    global tracked_reads, seen_in_a, seen_in_b, not_present_in_a, not_present_in_b, paralogous, repeat, filtered_by_quality, read_status
+    global tracked_reads, seen_in_a, seen_in_b, not_present_in_a, not_present_in_b, paralogous, repeat, filtered_by_quality_in_a, filtered_by_quality_in_b, read_status
     tracked_reads = set()
     seen_in_a = set()
     seen_in_b = set()
@@ -381,7 +386,8 @@ def main():
     not_present_in_b = set()
     paralogous = set()
     repeat = set()
-    filtered_by_quality = set()
+    filtered_by_quality_in_a = set()
+    filtered_by_quality_in_b = set()
     read_status = {}
     ids = [s.strip() for s in args.start_range.split(",")]
     intervals, missing = resolve_ids_to_loci(ids)
@@ -408,7 +414,7 @@ def main():
     total_tracked_reads = len(tracked_reads)
     mapped_elsewhere = {read_id for read_id, status in read_status.items() if status == "mapped_elsewhere"}
     missing_in_other = {read_id for read_id, status in read_status.items() if status == "not_present_in_other_bam"}
-    filtered_reads = {read_id for read_id, status in read_status.items() if status == "filtered_by_quality"}
+    filtered_reads = filtered_by_quality_in_a | filtered_by_quality_in_b
     classified_reads = mapped_elsewhere | missing_in_other | filtered_reads
     unclassified_reads = tracked_reads - classified_reads
 
@@ -421,13 +427,17 @@ def main():
             print(f"warning: {len(unclassified_reads)} tracked reads were not assigned a terminal status")
         print(f"mapped else where {len(mapped_elsewhere)} ({len(mapped_elsewhere)/total_tracked_reads*100:.2f}%)")
         print(f"not present in other bam {len(missing_in_other)} ({len(missing_in_other)/total_tracked_reads*100:.2f}%)")
-        print(f"filtered by quality {len(filtered_reads)} ({len(filtered_reads)/total_tracked_reads*100:.2f}%)")
+        print(f"filtered by quality (total) {len(filtered_reads)} ({len(filtered_reads)/total_tracked_reads*100:.2f}%)")
+        print(f"  filtered in bam A {len(filtered_by_quality_in_a)} ({len(filtered_by_quality_in_a)/total_tracked_reads*100:.2f}%)")
+        print(f"  filtered in bam B {len(filtered_by_quality_in_b)} ({len(filtered_by_quality_in_b)/total_tracked_reads*100:.2f}%)")
         print(f"paralogous {len(paralogous)} ({len(paralogous)/total_tracked_reads*100:.2f}%)")
         print(f"repeat {len(repeat)} ({len(repeat)/total_tracked_reads*100:.2f}%)")
     else:
         print("mapped else where 0 (0.00%)")
         print("not present in other bam 0 (0.00%)")
-        print("filtered by quality 0 (0.00%)")
+        print("filtered by quality (total) 0 (0.00%)")
+        print("  filtered in bam A 0 (0.00%)")
+        print("  filtered in bam B 0 (0.00%)")
         print("paralogous 0 (0.00%)")
         print("repeat 0 (0.00%)")
 if __name__ == "__main__":
