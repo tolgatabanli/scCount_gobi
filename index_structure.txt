@@ -1,7 +1,8 @@
 [ HEADER ]
 4 bytes (int)   : PROGRAM_IDENTIFIER
 4 bytes (int)   : INDEX_VERSION
-4 bytes (int)   : K (K-mer length)
+4 bytes (int)   : K
+4 bytes (int)   : MINIM_LENGTH
 
 [ GENE TABLE ]
 4 bytes (int)   : geneIdArray.length (Number of genes)
@@ -21,10 +22,7 @@
   [ For each Transcript ]
   4 bytes (int)   : path.size (Number of minimizers in this path)
     [ For each Minimizer in Path ]
-    2 bytes (short) : Minimizer value (ShortArrayList entry)
-
-
-
+    4 bytes (int)   : Minimizer value
 
 
 [ HEADER ]
