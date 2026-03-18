@@ -2,6 +2,7 @@
 library(tidyverse)
 library(igraph)
 
+## ignore
 genes_star <- read_tsv('?', skip=1) %>%
     select("Geneid", "Aligned.sortedByCoord.out.bam") %>%
     rename(gene = Geneid, count = Aligned.sortedByCoord.out.bam)
@@ -16,7 +17,7 @@ p <- genes_star %>% inner_join(genes_truth, by = c("gene" = "gene"), suffix = c(
     ggplot(aes(x = count_star, y = count_truth)) +
     geom_point()
 ggsave(filename = "simul_noMut_gamma_star_truth.png", p)
-
+## ignore end
 
 
 paralogs_raw <- read_tsv('/mnt/raidbio2/extstud/praktikum/genprakt-ws25/gruppe_a/paralogs.tsv', col_names = c("gene", "paralogs"), show_col_types = FALSE)
@@ -36,7 +37,7 @@ gene_to_group <- data.frame(
 ) %>% as_tibble()
 
 
-create_scatter <- function(df_truth, df_obs, label) {
+create_scatter <- function(df_truth, df_obs, label, is_grouped) {
   merged <- df_truth %>% 
     inner_join(df_obs, by = "id", suffix = c("_truth", "_obs"))
   
@@ -55,7 +56,7 @@ create_scatter <- function(df_truth, df_obs, label) {
              label = paste0("R = ", round(correlation, 4)), 
              hjust = 0, vjust = 1, fontface = "bold", size = 5) +
     labs(title = paste(label, "Comparison"),
-         subtitle = ifelse(!is.null(gene_to_group), "Grouped by Paralogs", "Individual Genes"),
+         subtitle = ifelse(is_grouped, "Grouped by Paralogs", "Individual Genes"),
          x = "Truth Counts",
          y = "Observed Counts") +
     scale_x_log10() +
@@ -103,7 +104,7 @@ plot_counts_comparison <- function(truth_path, obs_path, gene_to_group = NULL, o
   }  
   
 
-  p_gene <- create_scatter(genes_truth, obs_grouped, "Gene/Group")
+  p_gene <- create_scatter(genes_truth, obs_grouped, "Gene/Group", !is.null(gene_to_group))
   
   ggsave(filename = paste0(output_prefix, "_scatter.png"), plot = p_gene, width = 8, height = 7)
   
@@ -127,3 +128,22 @@ plot_counts_comparison('/mnt/cip/home/t/tabanli/Desktop/scCount/simulation/simco
             '/mnt/cip/home/t/tabanli/Desktop/scCount/out/count_simul_1mut_gamma_all/counts.tsv',
             gene_to_group,
             "simul_1mut_gamma_all")
+
+# triplets
+plot_counts_comparison('/mnt/cip/home/t/tabanli/Desktop/scCount/simulation/simcounts_1_5000.tsv',
+            '/home/t/tabanli/Desktop/scCount/out/count_triplet_simcounts_1_5000/counts.tsv',
+            NULL,
+            "simul_noMut_gamma_triplet")
+plot_counts_comparison('/mnt/cip/home/t/tabanli/Desktop/scCount/simulation/simcounts_1_5000.tsv',
+            '/home/t/tabanli/Desktop/scCount/out/count_triplet_simcounts_1_5000_1/counts.tsv',
+            NULL,
+            "simul_noMut_gamma_triplet_1mut")
+plot_counts_comparison('/mnt/cip/home/t/tabanli/Desktop/scCount/simulation/simcounts_1_5000.tsv',
+            '/home/t/tabanli/Desktop/scCount/out/count_triplet_simcounts_1_5000/counts.tsv',
+            gene_to_group,
+            "simul_noMut_gamma_triplet_grouped")
+
+plot_counts_comparison('/mnt/cip/home/t/tabanli/Desktop/scCount/simulation/counts_all.tsv',
+            '/mnt/cip/home/t/tabanli/Desktop/scCount/benchmark/out/counts_all_0_k15_g5/counts.tsv',
+            NULL,
+            "tmp0")
