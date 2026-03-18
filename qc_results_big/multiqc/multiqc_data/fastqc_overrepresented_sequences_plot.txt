@@ -1,0 +1,2 @@
+Sample	Top overrepresented sequence	Sum of remaining overrepresented sequences
+read2_Vis_66-10	0.48094813618296556	1.1513494365453596

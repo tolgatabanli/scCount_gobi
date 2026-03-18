@@ -1,0 +1,2 @@
+Sample	CDS_Exons	Introns	TSS_up_1kb	TSS_up_1kb-5kb	TSS_up_5kb-10kb	TES_down_1kb	TES_down_1kb-5kb	TES_down_5kb-10kb	Other_intergenic
+read_distribution	10322846.0	2774734.0	33282.0	88003.0	54869.0	672021.0	390966.0	108426.0	3846564.0

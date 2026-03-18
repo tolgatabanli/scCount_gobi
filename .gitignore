@@ -1,3 +1,11 @@
+*.png
+*.jfr
+*.idx.txt
+*.idx
+*.mappinginfo
+*.tsv
+*.bed
+*.fastq
 *.fasta
 data/
 prototyping/pig_index.mmi

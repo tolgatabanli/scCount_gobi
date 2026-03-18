@@ -1,0 +1,4 @@
+Sample	RNASeq	Samtools	FastQC
+FastQC			0.12.1
+QualiMap	2.3		
+Samtools		1.23	

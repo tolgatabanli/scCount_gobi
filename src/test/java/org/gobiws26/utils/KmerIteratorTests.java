@@ -21,7 +21,7 @@ public class KmerIteratorTests {
 
     @Test
     public void MinimizerWorks() {
-        short minimizer = Minimizers.getMinimizer(firstKmer); // expected: ACGCATG -> 11_00011101001011
-        assertEquals((short) Integer.parseInt("1100011101001011", 2), minimizer);
+        short minimizer = Minimizers.getMinimizer(firstKmer); // expected: ACGCATGC -> 0001110100101101
+        assertEquals((short) Integer.parseInt("0001110100101101", 2), minimizer);
     }
 }

@@ -1,0 +1,2 @@
+Sample	Sense	Antisense	Undetermined
+infer_experiment	90.61	6.59	2.8000000000000003

@@ -63,7 +63,7 @@ public class BinaryIndexReader {
                     graph.addTxPath(txId, path);
                 }
             }
-            graph.setTx2minimCount(tx2minimCount);
+            //graph.setTx2minimCount(tx2minimCount);
             graph.freezeGraph();
 
             return new IndexData(graph, int2TxString, int2GeneString, txInt2GeneInt);

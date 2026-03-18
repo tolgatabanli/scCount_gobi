@@ -1,0 +1,2 @@
+Sample	total_records	qc_failed	optical_pcr_duplicate	non_primary_hits	unmapped_reads	mapq_lt_mapq_cut_non-unique	mapq_gte_mapq_cut_unique	read_1	read_2	reads_map_to_sense	reads_map_to_antisense	non-splice_reads	splice_reads	reads_mapped_in_proper_pairs	proper-paired_reads_map_to_different_chrom	unique_percent	proper_pairs_percent
+bam_stat	263361661	0	125582922	0	34831302	10809499	92137938	0	0	52019503	40118435	83775107	8362831	0	0	34.98532688856333	0.0

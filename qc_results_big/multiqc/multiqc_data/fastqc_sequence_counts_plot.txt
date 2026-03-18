@@ -1,0 +1,2 @@
+Sample	Unique Reads	Duplicate Reads
+read2_Vis_66-10	46799402.0	216562259.0

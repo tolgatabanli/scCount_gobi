@@ -1,0 +1,2 @@
+Sample	Unique Reads	Duplicate Reads
+read2_Vis_36-15	11248426.0	36464638.0

@@ -1,9 +1,7 @@
 package org.gobiws26;
 
 
-import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -11,22 +9,15 @@ import java.util.List;
 
 
 import htsjdk.samtools.fastq.FastqRecord;
-import htsjdk.samtools.reference.FastaSequenceFile;
-import htsjdk.samtools.reference.ReferenceSequenceFile;
 import htsjdk.samtools.reference.ReferenceSequenceFileFactory;
 import htsjdk.samtools.fastq.FastqReader;
 import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
-import it.unimi.dsi.fastutil.ints.IntArrayList;
-import it.unimi.dsi.fastutil.shorts.ShortArrayList;
-import org.gobiws26.Indexing.BinaryIndexReader;
-import org.gobiws26.Indexing.BinaryIndexWriter;
-import org.gobiws26.Indexing.IndexData;
-import org.gobiws26.Indexing.Indexer;
+import org.gobiws26.Indexing.*;
 import org.gobiws26.Querying.CountMatrixWriter;
 import org.gobiws26.Querying.ParallelGraphQuery;
 import org.gobiws26.Readers.GTFReader;
 import org.gobiws26.genomicstruct.Transcript;
-import org.gobiws26.utils.Minimizers;
+import org.gobiws26.utils.ReadOneParser;
 
 
 public class Main {
@@ -64,16 +55,26 @@ public class Main {
             File countMatrixFile = new File(outputDir, "counts.tsv");
 
             IndexData idxData = BinaryIndexReader.read(indexFile);
-            ParallelGraphQuery pgq = new ParallelGraphQuery(idxData.graph, idxData.txInt2GeneInt, threads);
+            //IndexChainData idxData = BinaryIndexChainReader.read(indexFile);
+
+            ParallelGraphQuery pgq = new ParallelGraphQuery(idxData.graph(), idxData.txInt2GeneInt(), threads,
+                                                             readOneFile != null); // Enable barcode mode if r1 provided
+            //ParallelChainQuery pgq = new ParallelChainQuery(idxData, threads);
 
             // Process reads in batches to maintain constant memory usage
             final int BATCH_SIZE = batch_size;
             List<FastqRecord> batch = new ArrayList<>(BATCH_SIZE);
+            List<String> batchBarcodes = readOneFile != null ? new ArrayList<>(BATCH_SIZE) : null;
+            List<String> batchUMIs = readOneFile != null ? new ArrayList<>(BATCH_SIZE) : null;
 
             int reportingStep = BATCH_SIZE;
             System.out.println("Starting with threads: " + threads);
             System.out.println("Batch size and reporting step is every " + reportingStep + " reads.");
-            try (FastqReader readTwoReader = new FastqReader(readTwoFile)) {
+            System.out.println("Barcode-aware mode: " + (readOneFile != null ? "enabled" : "disabled"));
+
+            try (FastqReader readTwoReader = new FastqReader(readTwoFile);
+                 FastqReader readOneReader = readOneFile != null ? new FastqReader(readOneFile) : null) {
+                
                 long totalProcessed = 0;  // Tracks ACTUALLY PROCESSED and COUNTED reads
                 long lastReportedMilestone = 0;
 
@@ -82,9 +83,33 @@ public class Main {
                     FastqRecord theRead = readTwoReader.next();
                     batch.add(theRead);
 
+                    // Extract barcode and UMI if in barcode-aware mode
+                    if (readOneFile != null && readOneReader != null) {
+                        if (readOneReader.hasNext()) {
+                            FastqRecord readOneRecord = readOneReader.next();
+                            ReadOneParser.BarcodeUMI extracted = ReadOneParser.extract(readOneRecord);
+                            if (extracted != null) {
+                                batchBarcodes.add(extracted.barcode);
+                                batchUMIs.add(extracted.umi);
+                            } else {
+                                System.err.println("Warning: Could not extract barcode/UMI from read: " + readOneRecord.getReadName());
+                                batchBarcodes.add("UNKNOWN");
+                                batchUMIs.add("UNKNOWN");
+                            }
+                        } else {
+                            throw new IOException("ReadOne file has fewer reads than ReadTwo file");
+                        }
+                    }
+
                     // Process batch when it reaches target size
                     if (batch.size() >= BATCH_SIZE) {
-                        pgq.processBatch(batch);  // Blocks until batch is mapped and counted
+                        if (readOneFile != null) {
+                            pgq.processAllWithBarcodes(batch, batchBarcodes, batchUMIs);
+                            batchBarcodes.clear();
+                            batchUMIs.clear();
+                        } else {
+                            pgq.processBatch(batch);
+                        }
                         totalProcessed += batch.size();
                         batch.clear();
 
@@ -98,7 +123,11 @@ public class Main {
 
                 // Process remaining reads
                 if (!batch.isEmpty()) {
-                    pgq.processBatch(batch);  // Blocks until batch is mapped and counted
+                    if (readOneFile != null) {
+                        pgq.processAllWithBarcodes(batch, batchBarcodes, batchUMIs);
+                    } else {
+                        pgq.processBatch(batch);
+                    }
                     totalProcessed += batch.size();
                 }
 
@@ -111,11 +140,23 @@ public class Main {
                 throw new RuntimeException(e);
             }
 
-            Int2IntOpenHashMap geneInt2Counts = pgq.getGlobalGeneCounts();
-            Int2IntOpenHashMap txInt2Counts = pgq.getGlobalTxCounts();
-
-            CountMatrixWriter cmw = new CountMatrixWriter(countMatrixFile, idxData);
-            cmw.write(geneInt2Counts, txInt2Counts);
+            // Write output
+            if (readOneFile != null) {
+                // Barcode-aware mode: output as sparse matrix
+                CountMatrixWriter cmw = new CountMatrixWriter(countMatrixFile, idxData.int2TxString(),
+                                                              idxData.int2GeneString(), idxData.txInt2GeneInt());
+                cmw.writeBarcodeSparseMatrix(pgq.getGeneCountsPerBarcode(), pgq.getTxCountsPerBarcode(), 
+                                           pgq.getBarcodeMapper(), outputDir);
+                System.out.println("Wrote sparse matrix (Market Matrix format) to: " + outputDir);
+            } else {
+                // Legacy mode: output counts
+                Int2IntOpenHashMap geneInt2Counts = pgq.getGlobalGeneCounts();
+                Int2IntOpenHashMap txInt2Counts = pgq.getGlobalTxCounts();
+                CountMatrixWriter cmw = new CountMatrixWriter(countMatrixFile, idxData.int2TxString(),
+                                                              idxData.int2GeneString(), idxData.txInt2GeneInt());
+                cmw.write(geneInt2Counts, txInt2Counts);
+                System.out.println("Wrote counts to: " + countMatrixFile);
+            }
         }
         else {
             System.err.println("Could not identify command: " + args[0]);
@@ -124,7 +165,7 @@ public class Main {
         }
 
         long endTime = System.nanoTime();
-        System.out.println("Runtime: " + (endTime - startTime) / 1_000_000);
+        System.out.printf("Runtime: %.3f secs%n", (double) (endTime - startTime) / 1_000_000_000);
     }
 
 

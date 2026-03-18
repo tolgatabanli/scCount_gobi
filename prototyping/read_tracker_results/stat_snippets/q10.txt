@@ -1,0 +1,11 @@
+total visited loci: 1143
+tracked reads: 360592
+mapped else where in a: 9195
+mapped else where in b: 25154
+mapped else where 34349 (9.53%)
+not present in other bam 0 (0.00%)
+filtered by quality (total) 326243 (90.47%)
+  filtered in bam A 134337 (37.25%)
+  filtered in bam B 191906 (53.22%)
+paralogous 24556 (6.81%)
+repeat 0 (0.00%)

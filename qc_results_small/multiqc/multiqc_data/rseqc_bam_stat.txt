@@ -1,0 +1,2 @@
+Sample	Total records	QC failed	Duplicates	Non primary hit	Unmapped	Unique	+ve strand	-ve strand	Non-splice reads	Splice reads
+bam_stat	47.713063999999996	0.0	20.2985	0.0	10.798383999999999	14.371381	8.046474	6.324907	13.213353	1.158028

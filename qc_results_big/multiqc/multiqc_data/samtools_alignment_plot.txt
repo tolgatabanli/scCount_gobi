@@ -1,0 +1,4 @@
+Sample	Mapped (with MQ>0)	MQ0	Unmapped
+minimap_big	203924181.0	14587979.0	44849501.0
+spaceranger_big	228011326.0	519033.0	34831302.0
+star_big	174770766.0	1065343.0	87525552.0

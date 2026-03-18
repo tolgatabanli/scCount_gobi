@@ -1,0 +1,4 @@
+Sample	Total	Assigned	Unassigned_Unmapped	Unassigned_Read_Type	Unassigned_Singleton	Unassigned_MappingQuality	Unassigned_Chimera	Unassigned_FragmentLength	Unassigned_Duplicate	Unassigned_MultiMapping	Unassigned_Secondary	Unassigned_NonSplit	Unassigned_NoFeatures	Unassigned_Overlapping_Length	Unassigned_Ambiguity	percent_assigned
+minimap_big	263407093	131893846	44849501	0	0	0	0	0	0	0	0	0	40544838	41355665	4763243	50.0722453969757
+spaceranger_big	263361661	129482081	34831302	0	0	0	0	0	0	17076713	0	0	32479503	44727492	4764570	49.16512164616094
+star_big	290546578	130219132	87525552	0	0	0	0	0	0	40068206	0	0	23900911	4038848	4793929	44.818676886980924

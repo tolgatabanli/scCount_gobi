@@ -1,0 +1,56 @@
+RNA-Seq QC report
+-----------------------------------
+
+>>>>>>> Input
+
+    bam file = big_bam/minimap_big.bam
+    gff file = /nfs/home/students/m.tan/gobi/pig.gtf
+    counting algorithm = uniquely-mapped-reads
+    protocol = non-strand-specific
+    5'-3' bias region size = 100
+    5'-3' bias number of top transcripts = 1000
+
+
+>>>>>>> Reads alignment
+
+    reads aligned  = 218,557,592
+    total alignments = 218,557,592
+    secondary alignments = 0
+    non-unique alignments = 0
+    aligned to genes  = 163,381,832
+    ambiguous alignments = 5,816,519
+    no feature assigned = 36,007,181
+    not aligned = 44,849,501
+    SSP estimation (fwd/rev) = 0.95 / 0.05
+
+
+>>>>>>> Reads genomic origin
+
+    exonic =  163,381,832 (81.94%)
+    intronic = 19,880,382 (9.97%)
+    intergenic = 16,126,799 (8.09%)
+    overlapping exon = 9,301,123 (4.66%)
+
+
+>>>>>>> Transcript coverage profile
+
+    5' bias = 0.02
+    3' bias = 0.13
+    5'-3' bias = 0.4
+
+
+>>>>>>> Junction analysis
+
+    reads at junctions = 21,615,480
+
+    ACCT : 6.58%
+    GCCT : 6.33%
+    CTCT : 4.74%
+    AGGC : 3.38%
+    AGGA : 3.23%
+    GGGT : 2.99%
+    AGAG : 2.93%
+    CCCT : 2.81%
+    AGGG : 2.81%
+    AGGT : 2.71%
+    ATCT : 2.59%

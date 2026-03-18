@@ -1,0 +1,4 @@
+Sample	Assigned	Unassigned: Unmapped	Unassigned: Multi Mapping	Unassigned: No Features	Unassigned: Overlapping Length	Unassigned: Ambiguity
+minimap_big	131893846.0	44849501.0	0.0	40544838.0	41355665.0	4763243.0
+spaceranger_big	129482081.0	34831302.0	17076713.0	32479503.0	44727492.0	4764570.0
+star_big	130219132.0	87525552.0	40068206.0	23900911.0	4038848.0	4793929.0

@@ -1,0 +1,4 @@
+Sample	reads_aligned	total_alignments	non_unique_alignments	reads_aligned_genes	ambiguous_alignments	not_aligned	ssp_estimation	reads_aligned_exonic	reads_aligned_intronic	reads_aligned_intergenic	reads_aligned_overlapping_exon	5_bias	3_bias	5_3_bias
+minimap_big	218557592	218557592	0	163381832	5816519	44849501	0.95	163381832	19880382	16126799	9301123	0.02	0.13	0.4
+spaceranger_big	228530359	228530359	7925983	163003877	5903873	34831302	0.95	163003877	21318322	16739931	10086144	0.02	0.14	0.42
+star_big	175836109	203021026	21714855	129487906	4484454	87525552	0.95	129487906	14094411	11411681	5616245	0.01	0.1	0.43
